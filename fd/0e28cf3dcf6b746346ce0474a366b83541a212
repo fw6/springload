@@ -1,0 +1,25 @@
+AGENTS.md
+  s_63c06cd3ecc431::t_001c1449464614 1-13
+docs/agents/issue-tracker.md
+  s_63c06cd3ecc431::t_ef753d8b55ede6 1-46
+docs/agents/domain.md
+  s_63c06cd3ecc431::t_44413cb1f92ce4 1-37
+docs/agents/triage-labels.md
+  s_63c06cd3ecc431::t_2d2e2f8528c4f8 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "fd0e28cf3dcf6b746346ce0474a366b83541a212",
+  "prompts": {},
+  "sessions": {
+    "s_63c06cd3ecc431": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_b521be3d-a8b8-4bc8-b2eb-57515a2358d7",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
