@@ -3,6 +3,7 @@
 pub mod adjustment;
 pub mod ai;
 pub mod app;
+pub mod journal;
 pub mod market;
 pub mod plan;
 pub mod positions;

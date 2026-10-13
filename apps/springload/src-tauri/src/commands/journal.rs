@@ -1,0 +1,55 @@
+//! 交易日志的四条命令：记录与统计、手动补录、导出 CSV、AI 复盘。
+//!
+//! 领域规则在 `springload_core::journal`，这里只做接线、文件写入与 AI 调用。
+
+use crate::state::AppState;
+use springload_core::ai::{self, AiResult, ChatClient, Explanation, Scope};
+use springload_core::journal::{self, JournalView, ManualEntry};
+use springload_core::storage::trade_log::{self, TradeLogEntry};
+use std::sync::Arc;
+use tauri::State;
+
+/// 复盘总结不针对某一只股票，缓存键里的股票代码留空。
+const JOURNAL_CODE: &str = "";
+
+/// 读记录表与统计摘要。费用模型开启时逐笔扣减后再统计。
+#[tauri::command]
+pub fn journal_get(state: State<'_, AppState>) -> Result<JournalView, String> {
+    let settings = state.settings_get().map_err(|error| error.to_string())?;
+    journal::view(state.db(), settings.fee_model_enabled, settings.commission_rate)
+        .map_err(|error| error.to_string())
+}
+
+/// 手动补录一笔历史交易。
+#[tauri::command]
+pub fn journal_add_manual(
+    state: State<'_, AppState>,
+    entry: ManualEntry,
+) -> Result<TradeLogEntry, String> {
+    let conn = state.db().conn().map_err(|error| error.to_string())?;
+    journal::add_manual(&conn, &entry).map_err(|error| error.to_string())
+}
+
+/// 把全部记录导出成 CSV，写到给定路径。
+#[tauri::command]
+pub fn journal_export_csv(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    let conn = state.db().conn().map_err(|error| error.to_string())?;
+    let entries = trade_log::list(&conn).map_err(|error| error.to_string())?;
+    let csv = journal::export_csv(&entries);
+    std::fs::write(&path, csv).map_err(|error| format!("写入 {path} 失败: {error}"))
+}
+
+/// AI 复盘总结：描述已经发生的结果，不给判断。
+#[tauri::command]
+pub fn journal_review(state: State<'_, AppState>) -> Result<Explanation, String> {
+    journal_review_with(state.inner(), ai::default_client)
+}
+
+/// `journal_review` 的接线主体：模型客户端由调用方给出，便于测试注入。
+pub fn journal_review_with<F>(state: &AppState, client: F) -> Result<Explanation, String>
+where
+    F: FnOnce() -> AiResult<Arc<dyn ChatClient>>,
+{
+    ai::explain(state.db(), client, JOURNAL_CODE, Scope::Journal)
+        .map_err(|error| error.to_string())
+}
