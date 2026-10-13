@@ -38,6 +38,8 @@ pub fn run() {
             commands::app::glossary,
             commands::app::settings_get,
             commands::app::settings_update,
+            commands::settings::import_bars_csv,
+            commands::settings::confirm_first_run,
         ])
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用")
