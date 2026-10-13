@@ -1,0 +1,20 @@
+docs/research/strategy-parameter-distributions.md
+  s_e0d50db29e458d::t_eeee331de8f92e 322-381
+  s_e0d50db29e458d::t_6b6384241acd37 387-389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "0b02e87ff8ee05c6ed90d87e4ee6fd2eabba1876",
+  "prompts": {},
+  "sessions": {
+    "s_e0d50db29e458d": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_ec13882a-7522-40ee-a55f-3158556b3abc",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
