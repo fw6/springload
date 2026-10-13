@@ -104,6 +104,7 @@ export function stubInvoke(overrides: Record<string, unknown> = {}) {
     settings_update: settingsStub,
     watchlist_get: [],
     step_unlock: { unlocked: [true, true, true, true], reasons: ["", "", "", ""] },
+    corporate_actions_stale: [],
     ...overrides,
   };
   mockedInvoke.mockImplementation((async (command: string) => {

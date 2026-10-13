@@ -43,6 +43,8 @@ pub fn run() {
             commands::market::sync_status,
             commands::market::stock_list,
             commands::market::bars_get,
+            commands::adjustment::corporate_actions_stale,
+            commands::adjustment::resync_adjusted,
             commands::ai::explain,
             commands::ai::explain_retry,
             commands::ai::explain_invalidate,

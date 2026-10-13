@@ -2,6 +2,7 @@
 
 pub mod bar;
 pub mod bar_sync_state;
+pub mod corporate_action;
 pub mod migrations;
 pub mod position;
 pub mod setting;
