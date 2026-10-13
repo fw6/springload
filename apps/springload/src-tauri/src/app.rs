@@ -38,6 +38,9 @@ pub fn run() {
             commands::app::glossary,
             commands::app::settings_get,
             commands::app::settings_update,
+            commands::ai::explain,
+            commands::ai::explain_retry,
+            commands::ai::explain_invalidate,
         ])
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用")
