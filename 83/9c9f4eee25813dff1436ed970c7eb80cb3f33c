@@ -1,0 +1,41 @@
+apps/springload/src/routes/PositionsPage.test.tsx
+  s_bfd54e4da0576d::t_ec15c8443d9343 1-239
+crates/springload-core/src/alerts.rs
+  s_bfd54e4da0576d::t_3e026804b05f93 1-203,247-528
+  s_bfd54e4da0576d::t_35f9c5e595c2a1 204-246
+apps/springload/src-tauri/src/commands/mod.rs
+  s_bfd54e4da0576d::t_dd73f5da1fdf61 8
+crates/springload-core/src/lib.rs
+  s_bfd54e4da0576d::t_29f39f433c03c5 9
+apps/springload/src-tauri/tests/positions_test.rs
+  s_bfd54e4da0576d::t_4bf14866a66a0d 1-83,90-226,229-236,238-330
+  s_bfd54e4da0576d::t_0992015aea1d5c 84-89
+  s_bfd54e4da0576d::t_d5b4f0c909cd52 227-228,237
+apps/springload/src/api/positions.ts
+  s_bfd54e4da0576d::t_e8220a1ee91ac3 1-53
+apps/springload/src/routes/PositionsPage.tsx
+  s_bfd54e4da0576d::t_c413ab157fa779 1-117,119-181,187-193,196-216,218,220-260
+crates/springload-core/src/storage/bar.rs
+  s_bfd54e4da0576d::t_8550b108a68177 106-118
+apps/springload/src-tauri/src/app.rs
+  s_bfd54e4da0576d::t_be2bd33c8d131b 75-77
+apps/springload/src-tauri/src/commands/positions.rs
+  s_bfd54e4da0576d::t_5e4f7813b2425f 3,20,26-33,38,70
+  s_bfd54e4da0576d::t_0533cf9d5da3b1 1-2,4-19,21-25,34-37,39-69,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "839c9f4eee25813dff1436ed970c7eb80cb3f33c",
+  "prompts": {},
+  "sessions": {
+    "s_bfd54e4da0576d": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_9c18a22d-bef9-4ba4-905f-3e475a690baa",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
