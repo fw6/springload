@@ -14,6 +14,7 @@ pub mod glossary;
 pub mod indicators;
 pub mod market;
 pub mod screening;
+pub mod sizing;
 pub mod storage;
 pub mod support;
 
@@ -22,4 +23,5 @@ pub use error::{CoreError, Result};
 pub use flow::StepUnlock;
 pub use glossary::{Glossary, StepCopy, Term};
 pub use screening::{ScreenParams, ScreenReport, ScreenRow};
+pub use sizing::{ReducePlan, SizingInput, SizingResult};
 pub use storage::Database;

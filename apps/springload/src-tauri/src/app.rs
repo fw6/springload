@@ -61,6 +61,7 @@ pub fn run() {
             commands::zone::support_refs,
             commands::settings::import_bars_csv,
             commands::settings::confirm_first_run,
+            commands::sizing::plan_calc,
         ])
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用")
