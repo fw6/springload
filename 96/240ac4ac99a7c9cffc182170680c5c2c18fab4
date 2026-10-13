@@ -1,0 +1,35 @@
+apps/springload/src/api/sizing.ts
+  s_bfd54e4da0576d::t_023ae361595bf5 1-20
+crates/springload-core/src/lib.rs
+  s_bfd54e4da0576d::t_e58360bb1c750d 17,26
+apps/springload/src-tauri/src/commands/sizing.rs
+  s_bfd54e4da0576d::t_82b736d7dcc0b7 1-9
+crates/springload-core/src/sizing.rs
+  s_bfd54e4da0576d::t_6c909f96fd9bce 1-227
+apps/springload/src-tauri/src/app.rs
+  s_bfd54e4da0576d::t_8695a744309fb1 64
+apps/springload/src/flow/steps/Step4.tsx
+  s_bfd54e4da0576d::t_aa1fafdf84804c 1-6,9-33,35-74,76-215
+apps/springload/src-tauri/src/commands/mod.rs
+  s_bfd54e4da0576d::t_e621a12c9ad01e 9
+apps/springload/src/flow/steps/Step4.test.tsx
+  s_bfd54e4da0576d::t_5ca7e4ad1ebef3 78
+  s_bfd54e4da0576d::t_8ee80450631a2d 89,92-104
+  s_bfd54e4da0576d::t_fe987988116bfb 1-77,79-88,90-91,105-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "96240ac4ac99a7c9cffc182170680c5c2c18fab4",
+  "prompts": {},
+  "sessions": {
+    "s_bfd54e4da0576d": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_9c18a22d-bef9-4ba4-905f-3e475a690baa",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
