@@ -107,6 +107,35 @@ pub fn list(conn: &Connection) -> Result<Vec<WatchlistItem>> {
     Ok(out)
 }
 
+/// 观察名单的一行：名单记录加上股票名称。
+#[derive(Debug, Clone, PartialEq)]
+pub struct WatchlistEntry {
+    pub item: WatchlistItem,
+    pub name: String,
+}
+
+/// 按加入时间、代码升序列出观察名单，并带上股票名称。
+///
+/// 股票表里查不到代码时名称退回代码本身。
+pub fn list_with_names(conn: &Connection) -> Result<Vec<WatchlistEntry>> {
+    let mut stmt = conn.prepare(
+        "SELECT w.*, COALESCE(s.name, w.code) AS name
+         FROM watchlist_item w LEFT JOIN stock s ON s.code = w.code
+         ORDER BY w.added_at, w.code",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(WatchlistEntry {
+            item: WatchlistItem::from_row(row)?,
+            name: row.get("name")?,
+        })
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 /// 移除一条观察名单记录。
 pub fn remove(conn: &Connection, code: &str) -> Result<usize> {
     let n = conn.execute("DELETE FROM watchlist_item WHERE code = ?1", params![code])?;

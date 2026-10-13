@@ -32,6 +32,7 @@ pub fn run() {
             setup_tray(app.handle())?;
             sync_autostart(app.handle());
             commands::market::start_scheduler(app.handle().clone());
+            commands::screen::start_scheduler(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -48,6 +49,12 @@ pub fn run() {
             commands::ai::explain,
             commands::ai::explain_retry,
             commands::ai::explain_invalidate,
+            commands::screen::screen_stocks,
+            commands::screen::screen_last,
+            commands::screen::watchlist_get,
+            commands::screen::watchlist_add,
+            commands::screen::watchlist_remove,
+            commands::screen::step_unlock,
             commands::settings::import_bars_csv,
             commands::settings::confirm_first_run,
         ])
