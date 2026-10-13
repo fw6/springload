@@ -1,0 +1,26 @@
+prototype/README.md
+  s_61b4e79322fd00::t_8b3dae8214c323 22,27
+prototype/src/variants/VariantB.tsx
+  s_61b4e79322fd00::t_ddd613928e78b5 79-89
+  s_61b4e79322fd00::t_231729dcefc694 127-129
+  s_61b4e79322fd00::t_771d9ad3a72fae 136,139-140
+  s_61b4e79322fd00::t_c505a48f916609 160-174,176
+prototype/src/variant.tsx
+  s_61b4e79322fd00::t_e35c766ff0c839 26,28,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "93892fe3ed53c4339afe0d22b8e4bb2f71385b86",
+  "prompts": {},
+  "sessions": {
+    "s_61b4e79322fd00": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_7dac3cd5-cd04-4fe2-b43a-7f74e81bbe31",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
