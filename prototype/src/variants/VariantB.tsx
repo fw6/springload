@@ -76,7 +76,17 @@ function Modal({ state, onClose }: { state: ModalState | null; onClose: () => vo
   )
 }
 
-function StepsB({ flow, onOpen }: { flow: Flow; onOpen: (state: ModalState) => void }) {
+function StepsB({
+  flow,
+  onOpen,
+  collapsed,
+  onToggle,
+}: {
+  flow: Flow
+  onOpen: (state: ModalState) => void
+  collapsed: boolean
+  onToggle: () => void
+}) {
   return (
     <div className="steps">
       {steps.map((step) => (
@@ -114,16 +124,20 @@ function StepsB({ flow, onOpen }: { flow: Flow; onOpen: (state: ModalState) => v
       >
         这一步在干什么
       </button>
+      <button type="button" className="collapse-btn" onClick={onToggle}>
+        {collapsed ? '展开面板' : '收起面板'}
+      </button>
     </div>
   )
 }
 
 export function FlowB({ flow }: { flow: Flow }) {
   const [modal, setModal] = useState<ModalState | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
   return (
     <div className="flow-wrap">
-      <StepsB flow={flow} onOpen={setModal} />
-      <div className="flow">
+      <StepsB flow={flow} onOpen={setModal} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+      <div className="flow" data-collapsed={collapsed}>
         <div className="chart-card">
           <ChartToolbar flow={flow} />
           <KLineChart
@@ -143,21 +157,23 @@ export function FlowB({ flow }: { flow: Flow }) {
             onAvwapPicked={(index) => flow.setAvwapStart(index)}
           />
         </div>
-        <div className="panel">
-          <div className="panel-head">
-            <h2>{steps[flow.step - 1].title}</h2>
-            <span className="toolbar-spacer" />
-            <span className="hint">
-              {flow.detail.row.code} {flow.detail.row.name}
-            </span>
+        {collapsed ? null : (
+          <div className="panel">
+            <div className="panel-head">
+              <h2>{steps[flow.step - 1].title}</h2>
+              <span className="toolbar-spacer" />
+              <span className="hint">
+                {flow.detail.row.code} {flow.detail.row.name}
+              </span>
+            </div>
+            <div className="panel-body">
+              {flow.step === 1 ? <Step1B flow={flow} onOpen={setModal} /> : null}
+              {flow.step === 2 ? <Step2B flow={flow} onOpen={setModal} /> : null}
+              {flow.step === 3 ? <Step3B flow={flow} onOpen={setModal} /> : null}
+              {flow.step === 4 ? <Step4B flow={flow} onOpen={setModal} /> : null}
+            </div>
           </div>
-          <div className="panel-body">
-            {flow.step === 1 ? <Step1B flow={flow} onOpen={setModal} /> : null}
-            {flow.step === 2 ? <Step2B flow={flow} onOpen={setModal} /> : null}
-            {flow.step === 3 ? <Step3B flow={flow} onOpen={setModal} /> : null}
-            {flow.step === 4 ? <Step4B flow={flow} onOpen={setModal} /> : null}
-          </div>
-        </div>
+        )}
       </div>
       <Modal state={modal} onClose={() => setModal(null)} />
     </div>
