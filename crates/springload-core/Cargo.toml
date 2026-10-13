@@ -1,0 +1,21 @@
+[package]
+name = "springload-core"
+version.workspace = true
+description = "Springload 蓄势的领域核心：配置、术语文案与 SQLite 存储"
+edition = "2021"
+
+[lib]
+name = "springload_core"
+crate-type = ["rlib"]
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.35"
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

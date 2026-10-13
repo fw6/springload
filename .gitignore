@@ -1,2 +1,27 @@
+# Local
+.DS_Store
+*.local
+*.log*
+
+# 依赖与构建产物（.pnpm 是 pnpm 的 store 链接目录，含 crate 归档）
+node_modules
+.pnpm/
+target/
+dist/
+build/
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# TypeScript
+*.tsbuildinfo
+
+# 本机工具状态
 .zcodeignore
-.v2c
+.zcode/
+.v2c/
+
+# 中间结果（探针脚本、构建与运行日志）
+.scratch/

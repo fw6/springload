@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "apps/springload/src-tauri",
+    "crates/springload-core",
+]
+# 原型目录不参与构建；中间结果目录里的第三方 Cargo.toml 也不进 workspace：
+# pnpm install 会扫全树并对每个 Cargo.toml 跑 cargo metadata，排除掉才不会被卡住整次安装。
+exclude = ["prototype", ".scratch"]
+resolver = "2"
+
+# 应用版本的事实来源是 apps/springload/src-tauri/tauri.conf.json 的 version。
+# Cargo 读不了 json，所以这里跟一份，apps/springload/src-tauri/tests/tauri_config.rs
+# 有一条断言守着两者一致。
+[workspace.package]
+version = "0.1.0"
+
+# 打包体积（Tauri 官方推荐的 release 配置）：strip 去掉符号表，panic=abort 去掉
+# unwind 表，lto + codegen-units=1 让跨 crate 内联并消掉无法到达的代码。
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

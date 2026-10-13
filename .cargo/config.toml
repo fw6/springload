@@ -1,0 +1,11 @@
+# crates-io 的源由 pnpm 负责：`pnpm install` 把 crate 归档到 .pnpm/crates/crates-io，
+# 并往本文件末尾写入 include 块（marker 之间，内容由 pnpm 维护，不要手改）。
+# 索引地址在 pnpm-workspace.yaml 的 registries 里声明（rsproxy.cn，国内镜像）。
+[registries.crates-io]
+protocol = "sparse"
+
+# >>> pnpm-managed cargo sources >>>
+[[include]]
+path = "../.pnpm/crates/config.toml"
+optional = true
+# <<< pnpm-managed cargo sources <<<

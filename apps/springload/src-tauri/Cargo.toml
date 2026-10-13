@@ -1,0 +1,27 @@
+[package]
+name = "springload"
+version.workspace = true
+description = "Springload 蓄势：A 股回调买入法工作台"
+authors = ["fw6"]
+edition = "2021"
+
+[lib]
+# `_lib` 后缀让 lib 名与 bin 名不冲突（Windows 上的问题）。
+name = "springload_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# 与 @tauri-apps/api 的小版本对齐：tauri CLI 会拒绝版本不一致的 npm 包与 Rust crate。
+tauri = { version = "~2.12", features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-notification = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+springload-core = { path = "../../../crates/springload-core" }
+
+[dev-dependencies]
+tauri = { version = "~2.12", features = ["test"] }
+tempfile = "3"
