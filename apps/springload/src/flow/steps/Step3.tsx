@@ -93,7 +93,7 @@ export default function Step3({ flow }: StepProps) {
       <Stages status={status} />
 
       {status !== null ? (
-        <div className="notice" data-tone={status.stage === "triggered" ? "ok" : "info"}>
+        <div className="notice" data-tone={status.stage === "triggered" ? "warn" : "info"}>
           {status.detail}
         </div>
       ) : null}

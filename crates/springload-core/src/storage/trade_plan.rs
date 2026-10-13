@@ -2,9 +2,11 @@
 
 use crate::error::Result;
 use rusqlite::{params, Connection, OptionalExtension, Row};
+use serde::{Deserialize, Serialize};
 
 /// 一条交易计划。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TradePlan {
     pub id: String,
     pub code: String,

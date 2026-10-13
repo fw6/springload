@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toMessage } from "../../api/invoke";
+import { planSave } from "../../api/plan";
 import { getSettings } from "../../api/settings";
 import { planCalc, type SizingResult } from "../../api/sizing";
 import { AiCard } from "../../components/AiCard";
@@ -33,9 +35,34 @@ export function reduceShares(shares: number): {
 /** 第 4 步：输入买入价、止损价、账户金额与单笔风险比例，实时算出股数与目标位。 */
 export default function Step4({ flow }: StepProps) {
   const { sizing, setSizing } = flow;
+  const navigate = useNavigate();
   const [result, setResult] = useState<SizingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [warnDistance, setWarnDistance] = useState(0.05);
+
+  /** 把当前输入存成一条计划，然后跳到计划卡页面。 */
+  const generateCard = async () => {
+    if (flow.selected === null) return;
+    setBusy(true);
+    try {
+      await planSave({
+        code: flow.selected,
+        entry: sizing.entry,
+        stop: sizing.stop,
+        account: sizing.account,
+        riskPct: sizing.riskPct,
+        zoneId: flow.signal?.zoneId ?? null,
+      });
+      setPlanError(null);
+      navigate("/plan");
+    } catch (cause: unknown) {
+      setPlanError(toMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -200,7 +227,20 @@ export default function Step4({ flow }: StepProps) {
 
       {result !== null ? (
         <div className="panel-foot">
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void generateCard()}
+            disabled={busy || result.shares <= 0}
+          >
+            {busy ? "正在生成…" : "生成计划卡"}
+          </button>
           <span className="hint">未用满的风险金额 {money(result.unusedRisk)} 元</span>
+        </div>
+      ) : null}
+      {planError !== null ? (
+        <div className="notice" data-tone="risk">
+          {planError}
         </div>
       ) : null}
 

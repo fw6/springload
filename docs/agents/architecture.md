@@ -346,7 +346,8 @@ pub struct Settings {
 | `signal_evaluate` | #17 | `(code: String) -> SignalStatus` |
 | `poll_tick` | #17 | `() -> PollReport { waiting, positions, triggered }` |
 | `plan_calc` | #18 | `(input: SizingInput) -> SizingResult` |
-| `plan_save` | #19 | `(plan: TradePlanInput) -> TradePlan` |
+| `plan_save` | #19 | `(plan: PlanInput) -> TradePlan` |
+| `plan_card` | #19 | `(id: String) -> PlanCard`（把筛选结论、板块、减仓安排与计划拼成一页） |
 | `plan_get` | #19 | `(id: String) -> TradePlan` |
 | `plan_list` | #19 | `(status: Option<String>) -> Vec<TradePlan>` |
 | `plan_confirm_executed` | #19 | `(id: String, entryDate: String) -> TradeLogEntry` |

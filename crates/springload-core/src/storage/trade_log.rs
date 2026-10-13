@@ -2,9 +2,11 @@
 
 use crate::error::Result;
 use rusqlite::{params, Connection, OptionalExtension, Row};
+use serde::{Deserialize, Serialize};
 
 /// 一条交易记录。`source` 取 `plan` | `manual`。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TradeLogEntry {
     pub id: String,
     pub position_id: Option<String>,

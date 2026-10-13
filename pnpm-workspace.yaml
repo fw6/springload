@@ -11,5 +11,7 @@ registries:
     ecosystem: cargo
 
 # esbuild 的构建脚本必须跑（装平台二进制），pnpm 12 默认跳过所有构建脚本。
+# core-js 的构建脚本只是打印赞助信息，留着不让它跑。
 allowBuilds:
   esbuild: true
+  core-js: false

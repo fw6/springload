@@ -14,6 +14,7 @@ pub mod glossary;
 pub mod indicators;
 pub mod market;
 pub mod minute;
+pub mod plan;
 pub mod screening;
 pub mod signal;
 pub mod sizing;
