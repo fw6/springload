@@ -43,6 +43,9 @@ pub fn run() {
             commands::market::sync_status,
             commands::market::stock_list,
             commands::market::bars_get,
+            commands::ai::explain,
+            commands::ai::explain_retry,
+            commands::ai::explain_invalidate,
         ])
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用")

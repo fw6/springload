@@ -14,10 +14,20 @@ encoding_rs = "0.8"
 r2d2 = "0.8"
 r2d2_sqlite = "0.35"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "gzip"] }
+# AI 解释：Rig 接 DeepSeek。`rig-core` 提供 provider 与结构化输出契约，`rig-agent`
+# 提供 extractor（`submit` 工具的参数就是目标类型的 JSON Schema）。
+# 不引 `rig` 门面 crate：它把 lancedb / fastembed / milvus 等可选集成也算进依赖图，
+# 会拉进一整套用不到的重依赖。reqwest + native-tls 是默认 HTTP 传输
+# （macOS 上走系统 TLS，不额外拉构建依赖）。
+rig-agent = "0.42"
+rig-core = { version = "0.42", default-features = false, features = ["reqwest", "native-tls"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
+schemars = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+# Rig 的调用是异步的，命令层是同步的：客户端自带一个多线程运行期来 block_on。
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time"] }
 
 [dev-dependencies]
 tempfile = "3"
