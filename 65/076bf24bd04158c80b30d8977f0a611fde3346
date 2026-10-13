@@ -1,0 +1,137 @@
+apps/springload/src/chart/overlays.ts
+  s_aa5f0920eaca05::t_49e24a935205b3 63-110
+apps/springload/src-tauri/src/commands/market.rs
+  s_aa5f0920eaca05::t_cce77279730a38 98-99
+  s_aa5f0920eaca05::t_ef3caab3f2b3d4 9
+apps/springload/src/flow/steps/Step3.test.tsx
+  s_aa5f0920eaca05::t_af4ceaa81db997 25
+  s_aa5f0920eaca05::t_8accbb6edd7882 84
+  s_aa5f0920eaca05::t_d9f33eb5301861 45-51
+  s_aa5f0920eaca05::t_e723496380a8e9 122
+  s_aa5f0920eaca05::t_b4c5070691fb04 106
+crates/springload-core/src/market/mod.rs
+  s_aa5f0920eaca05::t_7e66b65942f215 100-115
+crates/springload-core/tests/storage_test.rs
+  s_aa5f0920eaca05::t_12fb3b248af0f7 224
+  s_aa5f0920eaca05::t_91b1bfdd90f20d 178,187-223,225-245
+apps/springload/src-tauri/src/commands/screen.rs
+  s_aa5f0920eaca05::t_0aead858cfb171 82-83,104,120,123
+apps/springload/src/chart/KLineChart.tsx
+  s_aa5f0920eaca05::t_f4721d4880858c 49
+  s_aa5f0920eaca05::t_2cbdbbda649a66 200-216
+crates/springload-core/src/market/sina.rs
+  s_aa5f0920eaca05::t_5ab2081a9a68a1 3
+  s_aa5f0920eaca05::t_31225715b2272a 102-103,105
+apps/springload/src/flow/useFlow.ts
+  s_aa5f0920eaca05::t_8a98b7a0fddb23 28-29
+  s_aa5f0920eaca05::t_cfc6cdbd850e33 107-110
+  s_aa5f0920eaca05::t_531b1b1721e9fe 75,80,85-86
+  s_aa5f0920eaca05::t_0552bc672ac47a 124
+  s_aa5f0920eaca05::t_cdf43c95b9e315 2
+  s_aa5f0920eaca05::t_5ee4654b14c4b9 74,79,81
+  s_aa5f0920eaca05::t_145bf2ef798601 65
+apps/springload/src-tauri/tests/ai_test.rs
+  s_aa5f0920eaca05::t_e1b2ffc5ea2ef4 153
+apps/springload/src/styles.css
+  s_aa5f0920eaca05::t_cc14afeb7420b9 358
+apps/springload/src-tauri/tests/screen_test.rs
+  s_aa5f0920eaca05::t_79d7e371de76a8 392-432,435-436
+  s_aa5f0920eaca05::t_18d2f5ce1ab397 433-434
+  s_aa5f0920eaca05::t_43d4e8c9d206c1 11
+crates/springload-core/src/screening.rs
+  s_aa5f0920eaca05::t_7cd56b8271e09d 277-278
+  s_aa5f0920eaca05::t_e78b91f2e51d3e 297
+  s_aa5f0920eaca05::t_9025559cc4860e 135
+apps/springload/src/flow/steps/Step2.test.tsx
+  s_aa5f0920eaca05::t_af4ceaa81db997 27
+crates/springload-core/src/storage/watchlist.rs
+  s_aa5f0920eaca05::t_739862e8cf730b 27-28
+  s_aa5f0920eaca05::t_d608f4c96db23e 152-154
+  s_aa5f0920eaca05::t_51dca477cb827e 53,55,59-60,72-73,88
+  s_aa5f0920eaca05::t_1e003d1a8f82e5 54
+  s_aa5f0920eaca05::t_128f55fc8d0b63 47
+crates/springload-core/src/plan.rs
+  s_aa5f0920eaca05::t_fb6d74fec5b820 13
+  s_aa5f0920eaca05::t_da1f9a0635e820 80
+  s_aa5f0920eaca05::t_affa9421399e6f 205-211
+apps/springload/src/flow/steps/Step4.test.tsx
+  s_aa5f0920eaca05::t_af4ceaa81db997 47
+docs/agents/architecture.md
+  s_aa5f0920eaca05::t_0f5cdfbc246571 390-391,393,395
+  s_aa5f0920eaca05::t_8089f2026794b5 359
+  s_aa5f0920eaca05::t_ced9acdf2ba4c8 153
+  s_aa5f0920eaca05::t_0835a2b0587fd5 346
+  s_aa5f0920eaca05::t_7c44f6bb14e4e2 425
+  s_aa5f0920eaca05::t_622af04ba8b0f3 67
+  s_aa5f0920eaca05::t_95b4761786f8c0 68-70,77,79,82-83
+  s_aa5f0920eaca05::t_6f4c150fc26007 211-212
+apps/springload/src/flow/steps/Step1.test.tsx
+  s_aa5f0920eaca05::t_bed00ee975ad08 279-280
+  s_aa5f0920eaca05::t_a21c07aa034579 261-278,281
+apps/springload/src/routes/SettingsPage.test.tsx
+  s_aa5f0920eaca05::t_c9a7ca4d25a40b 78-105
+apps/springload/src/routes/PlanPage.tsx
+  s_aa5f0920eaca05::t_d61c9cfac0a733 86-95,97,108
+  s_aa5f0920eaca05::t_3c62dde7c43342 2
+  s_aa5f0920eaca05::t_2acb4221804f2c 81-82
+apps/springload/src/routes/PlanPage.test.tsx
+  s_aa5f0920eaca05::t_fc92a6ea30c204 210-211
+  s_aa5f0920eaca05::t_f400871b41ed6e 209,212-224
+apps/springload/src/api/types.ts
+  s_aa5f0920eaca05::t_be7f39891669bf 54-63,70-71
+apps/springload/src-tauri/src/commands/signal.rs
+  s_aa5f0920eaca05::t_27c17314810b95 17-28,39-40,43-68,75,78-79,87-88,106
+apps/springload/src-tauri/src/commands/positions.rs
+  s_aa5f0920eaca05::t_a71a5b1d6d9c27 20
+  s_aa5f0920eaca05::t_7aa00fff2e2434 50-51,56-59
+crates/springload-core/src/storage/migrations.rs
+  s_aa5f0920eaca05::t_e784de04a2e747 148-154,156
+  s_aa5f0920eaca05::t_adb4568e0654ad 1,5
+apps/springload/src/flow/steps/Step3.tsx
+  s_aa5f0920eaca05::t_6148d24fe456b6 52,54-60
+crates/springload-core/src/alerts.rs
+  s_aa5f0920eaca05::t_d6299dd1633339 225-227
+  s_aa5f0920eaca05::t_09b8a58f831f2c 203-205,208,223-224,228-231,237-294
+apps/springload/src-tauri/src/app.rs
+  s_aa5f0920eaca05::t_dcea83f6b296ac 80-81
+apps/springload/src/routes/SettingsPage.tsx
+  s_aa5f0920eaca05::t_dca9707e87d178 270,274,276,278
+  s_aa5f0920eaca05::t_ff7ef5733ac1eb 39-40
+  s_aa5f0920eaca05::t_0dcbf76e6df23c 254-269,271-273,275,277,279-283
+apps/springload/src/routes/PositionsPage.tsx
+  s_aa5f0920eaca05::t_0410fdc34843e7 247
+apps/springload/src-tauri/tests/plan_test.rs
+  s_aa5f0920eaca05::t_c13aacca752d22 303-305
+  s_aa5f0920eaca05::t_fd9dc836aa861e 108
+apps/springload/src-tauri/tests/signal_test.rs
+  s_aa5f0920eaca05::t_7347175aebf957 257-286
+apps/springload/src/flow/Steps.tsx
+  s_aa5f0920eaca05::t_02a37ed55ee04d 8,10-18,25,32,34
+crates/springload-core/src/signal.rs
+  s_aa5f0920eaca05::t_3dc5cbbcd6fa57 22-23
+  s_aa5f0920eaca05::t_a19d32e8d1d7d5 212
+crates/springload-core/src/support.rs
+  s_aa5f0920eaca05::t_8182d1dc39d32a 8-9
+  s_aa5f0920eaca05::t_19bb38fff28544 185-188,193-194
+crates/springload-core/src/flow.rs
+  s_aa5f0920eaca05::t_ab77933c2a30e8 85
+apps/springload/src/flow/FlowPage.tsx
+  s_aa5f0920eaca05::t_991a1d1d68e230 2,5
+  s_aa5f0920eaca05::t_e29c7d7fc127f6 70,72,76-85,100-114,128-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "65076bf24bd04158c80b30d8977f0a611fde3346",
+  "prompts": {},
+  "sessions": {
+    "s_aa5f0920eaca05": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_769ba99a-84ad-411f-90a1-3a9e7dad3c44",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
