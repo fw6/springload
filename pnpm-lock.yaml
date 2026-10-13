@@ -171,6 +171,9 @@ importers:
       '@tauri-apps/api':
         specifier: ~2.12.3
         version: 2.12.3
+      klinecharts:
+        specifier: ^10.0.3
+        version: 10.0.3
       react:
         specifier: ^19.1.0
         version: 19.3.0
@@ -1005,6 +1008,9 @@ packages:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
     hasBin: true
+
+  klinecharts@10.0.3:
+    resolution: {integrity: sha512-phvf5CyS7oGE46nuC+nxQxl9D+8+5w8q3reExh0oNeMV1Jws4X0CMHNkOI9xlNA/XWctNS5whZ3PqIJi8YM2Tw==}
 
   lru-cache@11.5.3:
     resolution: {integrity: sha512-U4N8FgzmWxc8k1VH8Kr6lQg18U7Fjvby6wXHVRX/ZZ7IwWbRMgrRbP0Wrb5q5NVinryp4SQampHKdvtecItxUg==}
@@ -1955,6 +1961,8 @@ snapshots:
   jsesc@3.1.0: {}
 
   json5@2.2.3: {}
+
+  klinecharts@10.0.3: {}
 
   lru-cache@11.5.3: {}
 

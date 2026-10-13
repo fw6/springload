@@ -46,6 +46,10 @@ pub fn run() {
             commands::ai::explain,
             commands::ai::explain_retry,
             commands::ai::explain_invalidate,
+            commands::zone::support_zones_get,
+            commands::zone::support_zone_save,
+            commands::zone::support_zone_delete,
+            commands::zone::support_refs,
             commands::settings::import_bars_csv,
             commands::settings::confirm_first_run,
         ])

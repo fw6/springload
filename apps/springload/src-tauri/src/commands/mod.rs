@@ -4,3 +4,4 @@ pub mod ai;
 pub mod app;
 pub mod market;
 pub mod settings;
+pub mod zone;

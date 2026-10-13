@@ -78,6 +78,6 @@ describe("主流程骨架", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "等待买入信号" })).toBeTruthy();
     });
-    expect(container.querySelector(".chart-placeholder")!.textContent).toContain("1 分钟");
+    expect(screen.getByRole("button", { name: "1 分钟" }).getAttribute("aria-pressed")).toBe("true");
   });
 });

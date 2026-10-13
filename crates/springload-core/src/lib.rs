@@ -11,6 +11,7 @@ pub mod error;
 pub mod glossary;
 pub mod market;
 pub mod storage;
+pub mod support;
 
 pub use config::{Settings, SettingsLoad, SettingsPatch};
 pub use error::{CoreError, Result};
