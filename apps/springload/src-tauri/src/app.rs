@@ -31,6 +31,7 @@ pub fn run() {
         .setup(|app| {
             setup_tray(app.handle())?;
             sync_autostart(app.handle());
+            commands::market::start_scheduler(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -38,6 +39,10 @@ pub fn run() {
             commands::app::glossary,
             commands::app::settings_get,
             commands::app::settings_update,
+            commands::market::sync_market,
+            commands::market::sync_status,
+            commands::market::stock_list,
+            commands::market::bars_get,
         ])
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用")
