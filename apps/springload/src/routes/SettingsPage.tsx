@@ -8,6 +8,7 @@ import {
   type Settings,
   type SettingsPatch,
 } from "../api/settings";
+import { AdjustmentPanel } from "../components/AdjustmentPanel";
 import { SyncPanel } from "../components/SyncPanel";
 import { RiskNotesDialog, useBeginnerMode } from "../copy/BeginnerModeContext";
 
@@ -313,7 +314,7 @@ export default function SettingsPage() {
         <RiskNotesDialog confirmLabel="关闭" onConfirm={confirmRisk} />
       ) : null}
 
-      {/* 复权维护：#13 在此处插入 <AdjustmentPanel /> */}
+      <AdjustmentPanel />
     </div>
   );
 }

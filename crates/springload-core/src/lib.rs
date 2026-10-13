@@ -4,6 +4,7 @@
 //! 股票池与日线回补（`backfill`）、AI 解释（`ai`）与 SQLite 存储（`storage`）。
 //! 命令层是这里的薄封装。
 
+pub mod adjustment;
 pub mod ai;
 pub mod backfill;
 pub mod config;
