@@ -61,7 +61,7 @@ crates/springload-core/     # 领域核心
 | `glossary.rs` | #11 | 十个术语与四步文案（定稿文案的唯一来源） |
 | `storage/mod.rs` | #11 | `Database` 打开、迁移、连接池 |
 | `storage/migrations.rs` | #11 | 全部建表 SQL |
-| `storage/stock.rs`、`storage/bar.rs`、`storage/bar_sync_state.rs`、`storage/watchlist.rs`、`storage/support_zone.rs`、`storage/signal.rs`、`storage/trade_plan.rs`、`storage/position.rs`、`storage/trade_log.rs`、`storage/setting.rs` | #11 | 各表的读写 |
+| `storage/stock.rs`、`storage/bar.rs`、`storage/bar_sync_state.rs`、`storage/watchlist.rs`、`storage/support_zone.rs`、`storage/signal.rs`、`storage/trade_plan.rs`、`storage/position.rs`、`storage/trade_log.rs`、`storage/setting.rs` | #11 | 各表的读写（表的所有者 ticket 可以在自己的那张表的模块里追加函数） |
 | `storage/corporate_action.rs` | #13 | 除权除息事件的读写 |
 | `storage/bar_minute.rs` | #17 | 分钟线读写 |
 | `market/mod.rs` | #12 | `Bar`、`Snapshot`、`QuoteSource` 与适配器选择 |
