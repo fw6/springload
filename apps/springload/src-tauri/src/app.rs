@@ -46,6 +46,8 @@ pub fn run() {
             commands::ai::explain,
             commands::ai::explain_retry,
             commands::ai::explain_invalidate,
+            commands::settings::import_bars_csv,
+            commands::settings::confirm_first_run,
         ])
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用")
