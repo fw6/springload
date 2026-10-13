@@ -1,0 +1,19 @@
+docs/research/quote-api-spec.md
+  s_ebc8667b4ad25d::t_caa69d845b0dbd 1-479
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "b2d027a34686b097e0938c28911658c4e4064277",
+  "prompts": {},
+  "sessions": {
+    "s_ebc8667b4ad25d": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_efb1c101-47f9-42d5-96ed-de854ac34d13",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
