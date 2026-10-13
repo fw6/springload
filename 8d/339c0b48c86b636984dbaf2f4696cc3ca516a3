@@ -1,0 +1,19 @@
+docs/agents/architecture.md
+  s_bfd54e4da0576d::t_470ce876976d94 64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "8d339c0b48c86b636984dbaf2f4696cc3ca516a3",
+  "prompts": {},
+  "sessions": {
+    "s_bfd54e4da0576d": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_9c18a22d-bef9-4ba4-905f-3e475a690baa",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
