@@ -175,12 +175,74 @@ fn watchlist_round_trips_and_removes() {
         avg_amount: Some(2.0e8),
         convergence: Some(0.18),
         screen_run_at: "2026-10-13T08:00:00Z".into(),
+        manual: true,
     };
     watchlist::upsert(&conn, &item).unwrap();
     assert_eq!(watchlist::get(&conn, "600000").unwrap(), Some(item));
     assert_eq!(watchlist::list(&conn).unwrap().len(), 1);
     assert_eq!(watchlist::remove(&conn, "600000").unwrap(), 1);
     assert!(watchlist::list(&conn).unwrap().is_empty());
+}
+
+#[test]
+fn watchlist_delete_auto_keeps_manual_rows() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open(&dir);
+    let conn = db.conn().unwrap();
+
+    let auto = watchlist_item("600000", false);
+    let manual = watchlist_item("600001", true);
+    watchlist::upsert(&conn, &auto).unwrap();
+    watchlist::upsert(&conn, &manual).unwrap();
+
+    assert_eq!(watchlist::delete_auto(&conn).unwrap(), 1);
+    let left = watchlist::list(&conn).unwrap();
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].code, "600001");
+    assert!(left[0].manual);
+}
+
+#[test]
+fn watchlist_upsert_keeps_the_manual_mark_and_added_at() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open(&dir);
+    let conn = db.conn().unwrap();
+
+    let manual = watchlist_item("600000", true);
+    watchlist::upsert(&conn, &manual).unwrap();
+
+    // 之后的一次筛选又选中同一只：判定刷新，手工标记与加入时间保持原样。
+    let mut screened = watchlist_item("600000", false);
+    screened.added_at = "2026-11-01T08:00:00Z".into();
+    screened.c2 = false;
+    screened.screen_run_at = "2026-11-01T08:00:00Z".into();
+    watchlist::upsert(&conn, &screened).unwrap();
+
+    let stored = watchlist::get(&conn, "600000").unwrap().unwrap();
+    assert!(stored.manual);
+    assert_eq!(stored.added_at, manual.added_at);
+    assert!(!stored.c2);
+    assert_eq!(stored.screen_run_at, "2026-11-01T08:00:00Z");
+}
+
+/// 造一条观察名单记录，判定取值固定。
+fn watchlist_item(code: &str, manual: bool) -> WatchlistItem {
+    WatchlistItem {
+        code: code.into(),
+        added_at: "2026-10-13T08:00:00Z".into(),
+        c1: true,
+        c2: true,
+        c3: true,
+        c4: false,
+        chg_1m: Some(0.12),
+        chg_3m: Some(0.30),
+        chg_6m: Some(0.45),
+        rank_pct: Some(0.25),
+        avg_amount: Some(2.0e8),
+        convergence: Some(0.18),
+        screen_run_at: "2026-10-13T08:00:00Z".into(),
+        manual,
+    }
 }
 
 #[test]

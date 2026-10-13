@@ -22,6 +22,7 @@ function flowStub(): Flow {
     selectStock: vi.fn(),
     watchlist: [],
     reloadWatchlist: vi.fn(async () => {}),
+    loadError: null,
     period: "minute",
     setPeriod: vi.fn(),
     tool: "none",
@@ -41,7 +42,13 @@ let status: SignalStatus;
 let evaluateFails: boolean;
 
 beforeEach(() => {
-  status = { stage: "waiting", zoneId: null, zone: null, detail: "前置条件未满足：还没有高置信支撑区。" };
+  status = {
+    stage: "waiting",
+    zoneId: null,
+    zone: null,
+    detail: "前置条件未满足：还没有高置信支撑区。",
+    trigger: null,
+  };
   evaluateFails = false;
   mockedInvoke.mockImplementation((async (command: string) => {
     if (command === "glossary") return glossaryStub;
@@ -74,6 +81,7 @@ describe("第 3 步：等待买入信号", () => {
       zoneId: "zone-1",
       zone: { id: "zone-1", code: "600036", kind: "support", low: 9.9, high: 10.1, confidence: "高", spread: 0.01 },
       detail: "前置条件已满足：价格站上高置信支撑区，等待分钟图出现下探回升后突破前一根高点。",
+      trigger: null,
     };
     renderStep3();
 
@@ -95,6 +103,7 @@ describe("第 3 步：等待买入信号", () => {
       zoneId: "zone-1",
       zone: { id: "zone-1", code: "600036", kind: "support", low: 9.9, high: 10.1, confidence: "高", spread: 0.01 },
       detail: "已触发：2026-10-13 09:34 · 1 分钟 · 本根最高 10.06 超过前一根最高 10.04。",
+      trigger: { ts: "2026-10-13 09:34", brokenHigh: 10.06, preHigh: 10.04 },
     };
     renderStep3();
 
@@ -110,6 +119,7 @@ describe("第 3 步：等待买入信号", () => {
       zoneId: "zone-1",
       zone: { id: "zone-1", code: "600036", kind: "support", low: 9.9, high: 10.1, confidence: "高", spread: 0.01 },
       detail: "价格 9.5 已跌穿高置信支撑区下沿 9.9 且没有回升，保持等待，不发出提示。",
+      trigger: null,
     };
     renderStep3();
 

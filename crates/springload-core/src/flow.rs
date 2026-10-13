@@ -82,6 +82,7 @@ mod tests {
                 avg_amount: Some(2e8),
                 convergence: Some(0.1),
                 screen_run_at: "2026-10-13T09:00:00Z".to_string(),
+                manual: false,
             },
         )
         .expect("写观察名单");

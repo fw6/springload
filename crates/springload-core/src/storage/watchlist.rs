@@ -24,6 +24,8 @@ pub struct WatchlistItem {
     pub convergence: Option<f64>,
     /// 这次筛选的运行时间。
     pub screen_run_at: String,
+    /// 手工补充进名单。筛选不会把这类行冲掉。
+    pub manual: bool,
 }
 
 impl WatchlistItem {
@@ -42,18 +44,21 @@ impl WatchlistItem {
             avg_amount: row.get("avg_amount")?,
             convergence: row.get("convergence")?,
             screen_run_at: row.get("screen_run_at")?,
+            manual: row.get::<_, i64>("manual")? != 0,
         })
     }
 }
 
 /// 写入或更新一条观察名单记录。
+///
+/// 代码已存在时保留原来的加入时间，只刷新筛选判定；`manual` 只增不减，
+/// 手工标记一旦打上就不会被后来的筛选抹掉。
 pub fn upsert(conn: &Connection, item: &WatchlistItem) -> Result<()> {
     conn.execute(
         "INSERT INTO watchlist_item
-           (code, added_at, c1, c2, c3, c4, chg_1m, chg_3m, chg_6m, rank_pct, avg_amount, convergence, screen_run_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+           (code, added_at, c1, c2, c3, c4, chg_1m, chg_3m, chg_6m, rank_pct, avg_amount, convergence, screen_run_at, manual)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
          ON CONFLICT(code) DO UPDATE SET
-           added_at = excluded.added_at,
            c1 = excluded.c1,
            c2 = excluded.c2,
            c3 = excluded.c3,
@@ -64,7 +69,8 @@ pub fn upsert(conn: &Connection, item: &WatchlistItem) -> Result<()> {
            rank_pct = excluded.rank_pct,
            avg_amount = excluded.avg_amount,
            convergence = excluded.convergence,
-           screen_run_at = excluded.screen_run_at",
+           screen_run_at = excluded.screen_run_at,
+           manual = MAX(watchlist_item.manual, excluded.manual)",
         params![
             item.code,
             item.added_at,
@@ -79,6 +85,7 @@ pub fn upsert(conn: &Connection, item: &WatchlistItem) -> Result<()> {
             item.avg_amount,
             item.convergence,
             item.screen_run_at,
+            item.manual as i64,
         ],
     )?;
     Ok(())
@@ -142,8 +149,8 @@ pub fn remove(conn: &Connection, code: &str) -> Result<usize> {
     Ok(n)
 }
 
-/// 清空整张表。
-pub fn delete_all(conn: &Connection) -> Result<usize> {
-    let n = conn.execute("DELETE FROM watchlist_item", [])?;
+/// 清掉筛选自动写入的行，保留手工补充的行。
+pub fn delete_auto(conn: &Connection) -> Result<usize> {
+    let n = conn.execute("DELETE FROM watchlist_item WHERE manual = 0", [])?;
     Ok(n)
 }

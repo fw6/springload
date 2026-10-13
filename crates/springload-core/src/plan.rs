@@ -10,6 +10,7 @@ use crate::storage::trade_plan::TradePlan;
 use crate::storage::{now, position, stock, trade_log, trade_plan};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// 计划卡的状态取值。
 pub const DRAFT: &str = "draft";
@@ -76,7 +77,7 @@ pub fn save(conn: &Connection, input: &PlanInput) -> Result<TradePlan> {
         id: existing
             .as_ref()
             .map(|plan| plan.id.clone())
-            .unwrap_or_else(|| format!("plan-{}-{}", input.code, millis())),
+            .unwrap_or_else(|| new_id(&input.code)),
         code: input.code.clone(),
         entry: input.entry,
         stop: input.stop,
@@ -201,7 +202,11 @@ pub fn confirm_executed(conn: &mut Connection, id: &str, entry_date: &str) -> Re
     Ok(entry)
 }
 
-/// 毫秒时间戳，用来拼新计划的 id。
-fn millis() -> i64 {
-    chrono::Utc::now().timestamp_millis()
+/// 新计划的 id：代码 + 毫秒时间戳 + 进程内自增序号。
+///
+/// 序号让同一毫秒内连存两条计划也不会撞上同一个 id。
+fn new_id(code: &str) -> String {
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    format!("plan-{code}-{}-{seq}", chrono::Utc::now().timestamp_millis())
 }

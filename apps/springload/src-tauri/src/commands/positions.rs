@@ -17,7 +17,7 @@ pub fn positions_get(state: State<'_, AppState>) -> Result<Vec<PositionView>, St
     alerts::list_positions(state.db()).map_err(|error| error.to_string())
 }
 
-/// 抓一次腾讯快照刷新最新价，按刷新结果发 macOS 系统通知。
+/// 抓一次实时快照刷新最新价，按刷新结果发 macOS 系统通知。
 #[tauri::command]
 pub fn positions_refresh_quotes(
     app: AppHandle,
@@ -47,12 +47,16 @@ pub fn positions_refresh_quotes(
                 alert.signal_date,
                 alert.executable_date
             );
-            let _ = app
+            // 通知失败不影响已经刷新好的持仓视图，把原因打到标准错误。
+            if let Err(error) = app
                 .notification()
                 .builder()
                 .title(NOTIFICATION_TITLE)
                 .body(body)
-                .show();
+                .show()
+            {
+                eprintln!("发送持仓提示通知失败: {error}");
+            }
         }
     }
     Ok(views)

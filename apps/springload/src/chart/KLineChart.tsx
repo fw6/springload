@@ -46,7 +46,7 @@ function supportsCanvas(): boolean {
  * 通过 `chart/zoneStore` 看到同一份标注列表。
  */
 export default function KLineChart({ flow }: { flow: Flow }) {
-  const { selected, period, tool, avwapStartDate } = flow;
+  const { selected, period, tool, avwapStartDate, signal } = flow;
   const holderRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
   /** 正在画的 overlay 的 id，对账时要跳过它。 */
@@ -196,6 +196,23 @@ export default function KLineChart({ flow }: { flow: Flow }) {
       styles: { line: { color: "#7c3aed", style: "dashed" } },
     });
   }, [avwapStartIndex, selected, period, bars]);
+
+  // 触发信号：只在分钟图上画，锚点是触发那根 K 线的最高价。
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (chart === null) return;
+    chart.removeOverlay({ name: "signalMarker" });
+    if (period !== "minute" || signal?.trigger == null) return;
+    const trigger = signal.trigger;
+    const bar = bars.find((item) => item.date === trigger.ts);
+    if (bar === undefined) return;
+    chart.createOverlay({
+      name: "signalMarker",
+      lock: true,
+      extendData: { label: `触发 ${trigger.ts.slice(11)}` },
+      points: [{ timestamp: toTimestamp(bar.date), value: bar.high }],
+    });
+  }, [bars, period, selected, signal]);
 
   // 已画的矩形与水平线：按 id 对账，多的删掉、少的补上；拖动结束后写回数据库。
   useEffect(() => {

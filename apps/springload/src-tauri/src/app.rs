@@ -60,8 +60,6 @@ pub fn run() {
             commands::zone::support_zone_save,
             commands::zone::support_zone_delete,
             commands::zone::support_refs,
-            commands::settings::import_bars_csv,
-            commands::settings::confirm_first_run,
             commands::sizing::plan_calc,
             commands::signal::signal_status,
             commands::signal::signal_evaluate,
@@ -79,6 +77,8 @@ pub fn run() {
             commands::journal::journal_add_manual,
             commands::journal::journal_export_csv,
             commands::journal::journal_review,
+            commands::settings::import_bars_csv,
+            commands::settings::confirm_first_run,
         ])
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用")

@@ -49,11 +49,15 @@ export default function Step3({ flow }: StepProps) {
   // 每分钟一轮轮询结束之后刷新当前这只股票的状态。
   useEffect(() => {
     let stop: (() => void) | null = null;
-    void listen(POLL_TICK_EVENT, () => {
+    listen(POLL_TICK_EVENT, () => {
       void load();
-    }).then((unlisten) => {
-      stop = unlisten;
-    });
+    })
+      .then((unlisten) => {
+        stop = unlisten;
+      })
+      .catch((cause: unknown) => {
+        setError(toMessage(cause));
+      });
     return () => {
       stop?.();
     };

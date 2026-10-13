@@ -44,6 +44,7 @@ function flowStub(sizing: SizingInput): Flow {
     selectStock: vi.fn(),
     watchlist: [],
     reloadWatchlist: vi.fn(async () => {}),
+    loadError: null,
     period: "day",
     setPeriod: vi.fn(),
     tool: "none",

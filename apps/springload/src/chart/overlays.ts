@@ -60,6 +60,54 @@ interface AvwapPoint {
   avwap?: number;
 }
 
+interface SignalExtend {
+  label?: string;
+}
+
+/**
+ * 触发信号标记：在触发那根分钟线的最高价上方画一个向下指的三角与一行文字。
+ * 只在分钟图上用，锚点是触发那根 K 线。
+ */
+registerOverlay<SignalExtend>({
+  name: "signalMarker",
+  totalStep: 1,
+  createPointFigures: ({ coordinates, overlay }) => {
+    const point = coordinates[0];
+    if (point === undefined) return [];
+    const half = 7;
+    const height = 11;
+    const color = "#b45309";
+    return [
+      {
+        key: "marker",
+        type: "polygon",
+        attrs: {
+          coordinates: [
+            { x: point.x, y: point.y },
+            { x: point.x - half, y: point.y - height },
+            { x: point.x + half, y: point.y - height },
+          ],
+        },
+        styles: { style: "fill", color, borderColor: color, borderSize: 1 },
+        ignoreEvent: true,
+      },
+      {
+        key: "label",
+        type: "text",
+        attrs: {
+          x: point.x,
+          y: point.y - height - 4,
+          text: (overlay.extendData as SignalExtend | undefined)?.label ?? "",
+          align: "center",
+          baseline: "bottom",
+        },
+        styles: { color, size: 11, weight: "600", backgroundColor: "transparent" },
+        ignoreEvent: true,
+      },
+    ];
+  },
+});
+
 /**
  * klinecharts 内置指标里没有 AVWAP，自己注册一个：从 `calcParams[0]` 指定的 bar
  * 起，按典型价 `(high + low + close) / 3` 与成交量累计平均成本价。

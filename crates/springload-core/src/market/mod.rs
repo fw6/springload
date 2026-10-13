@@ -82,21 +82,6 @@ pub struct Snapshot {
     pub captured_at: String,
 }
 
-/// 日线数据源。前复权日线用东方财富；新浪作为备用来源。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum QuoteSource {
-    Eastmoney,
-    Sina,
-}
-
-impl QuoteSource {
-    /// 默认的数据源。
-    pub fn default_source() -> Self {
-        QuoteSource::Eastmoney
-    }
-}
-
 impl From<crate::storage::bar::BarRow> for Bar {
     fn from(row: crate::storage::bar::BarRow) -> Self {
         Bar {
@@ -108,6 +93,22 @@ impl From<crate::storage::bar::BarRow> for Bar {
             close: row.close,
             volume: row.volume,
             amount: row.amount,
+        }
+    }
+}
+
+/// 分钟线的时间点 `ts` 落到 `Bar` 的 `date` 字段。
+impl From<MinuteBar> for Bar {
+    fn from(bar: MinuteBar) -> Self {
+        Bar {
+            code: bar.code,
+            date: bar.ts,
+            open: bar.open,
+            high: bar.high,
+            low: bar.low,
+            close: bar.close,
+            volume: bar.volume,
+            amount: bar.amount,
         }
     }
 }

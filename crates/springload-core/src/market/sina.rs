@@ -1,6 +1,6 @@
 //! 新浪适配器：`hq.sinajs.cn` 实时快照。
 //!
-//! 事实来源见 `docs/research/quote-api-spec.md` 第 5 节。请求必须携带主机名为
+//! 事实来源见 `docs/research/quote-api-limits.md` 第一节。请求必须携带主机名为
 //! `sina.com.cn` 或其子域的 `Referer`，响应编码是 GB18030。不存在的代码返回空占位
 //! `=""`，响应按代码字段重新配对。
 
@@ -99,9 +99,10 @@ pub fn parse_snapshots(body: &str) -> Result<Vec<Snapshot>> {
             continue;
         }
         let fields: Vec<&str> = content.split(',').collect();
-        if fields.len() < 32 {
+        // 最后一项状态码在索引 32，字段数不足 33 时截断了。
+        if fields.len() < 33 {
             return Err(CoreError::InvalidData(format!(
-                "新浪快照字段数 {} 少于 32",
+                "新浪快照字段数 {} 少于 33",
                 fields.len()
             )));
         }

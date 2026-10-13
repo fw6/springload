@@ -355,7 +355,7 @@ select {
   color: #fff;
 }
 
-.step-chip:disabled {
+.step-chip[aria-disabled='true'] {
   opacity: 0.45;
   cursor: not-allowed;
 }

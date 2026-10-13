@@ -132,6 +132,7 @@ impl ScreenRow {
             avg_amount: self.avg_amount,
             convergence: self.convergence,
             screen_run_at: screen_run_at.to_string(),
+            manual: false,
         }
     }
 }
@@ -273,7 +274,8 @@ pub fn classify(mut candidates: Vec<Candidate>, params: &ScreenParams) -> Screen
     }
 }
 
-/// 跑一遍筛选：读全市场日线，判定，把入选写进观察名单，并把报告存进 `setting` 表。
+/// 跑一遍筛选：读全市场日线，判定，把入选写进观察名单（手工补充的行保留），
+/// 并把报告存进 `setting` 表。
 pub fn run_screen(db: &Database, params: &ScreenParams) -> Result<ScreenReport> {
     let started = Instant::now();
     let conn = db.conn()?;
@@ -292,7 +294,7 @@ pub fn run_screen(db: &Database, params: &ScreenParams) -> Result<ScreenReport> 
     let outcome = classify(candidates, params);
     let ran_at = crate::storage::now();
 
-    watchlist::delete_all(&conn)?;
+    watchlist::delete_auto(&conn)?;
     for row in &outcome.picked {
         watchlist::upsert(&conn, &row.to_watchlist_item(&ran_at, &ran_at))?;
     }

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import type { ToolId } from "../api/types";
+import type { StepIndex, ToolId } from "../api/types";
 import KLineChart from "../chart/KLineChart";
 import { Modal } from "../components/Modal";
+import { StepGate } from "../components/StepGate";
 import { useSteps } from "../copy/GlossaryContext";
 import Step1 from "./steps/Step1";
 import Step2 from "./steps/Step2";
@@ -66,11 +67,22 @@ export default function FlowPage() {
   const flow = useFlow();
   const steps = useSteps();
   const [explainOpen, setExplainOpen] = useState(false);
+  const [blocked, setBlocked] = useState<StepIndex | null>(null);
   const current = steps[flow.step - 1];
+  const blockedCopy = blocked === null ? null : steps[blocked - 1];
 
   return (
     <div className="flow-wrap">
-      <Steps flow={flow} onExplain={() => setExplainOpen(true)} />
+      <Steps
+        flow={flow}
+        onExplain={() => setExplainOpen(true)}
+        onBlocked={(target) => setBlocked(target)}
+      />
+      {flow.loadError !== null ? (
+        <div className="notice" data-tone="risk">
+          读取观察名单与解锁状态失败：{flow.loadError}
+        </div>
+      ) : null}
       <div className="flow" data-collapsed={flow.collapsed}>
         <div className="chart-card">
           <FlowToolbar flow={flow} />
@@ -85,9 +97,21 @@ export default function FlowPage() {
             </div>
             <div className="panel-body">
               {flow.step === 1 ? <Step1 flow={flow} /> : null}
-              {flow.step === 2 ? <Step2 flow={flow} /> : null}
-              {flow.step === 3 ? <Step3 flow={flow} /> : null}
-              {flow.step === 4 ? <Step4 flow={flow} /> : null}
+              {flow.step === 2 ? (
+                <StepGate flow={flow} target={2}>
+                  <Step2 flow={flow} />
+                </StepGate>
+              ) : null}
+              {flow.step === 3 ? (
+                <StepGate flow={flow} target={3}>
+                  <Step3 flow={flow} />
+                </StepGate>
+              ) : null}
+              {flow.step === 4 ? (
+                <StepGate flow={flow} target={4}>
+                  <Step4 flow={flow} />
+                </StepGate>
+              ) : null}
             </div>
           </div>
         )}
@@ -99,6 +123,14 @@ export default function FlowPage() {
         >
           <p>{current.oneLine}</p>
           <p>{current.detail}</p>
+        </Modal>
+      ) : null}
+      {blockedCopy !== null ? (
+        <Modal
+          title={`第 ${blockedCopy.index} 步 · ${blockedCopy.title}`}
+          onClose={() => setBlocked(null)}
+        >
+          <p>{blockedCopy.blockedHint}</p>
         </Modal>
       ) : null}
     </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useSearchParams } from "react-router-dom";
 import { toMessage } from "../api/invoke";
 import {
   planCard,
@@ -78,17 +78,23 @@ export default function PlanPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const sheet = useRef<HTMLDivElement>(null);
+  const [searchParams] = useSearchParams();
+  const requestedId = searchParams.get("id");
 
   const load = useCallback(async () => {
     try {
-      const plans = await planList();
-      if (plans.length === 0) {
-        setCard(null);
-        setError(null);
-        return;
+      // 持仓页的草稿列表带 `?id=` 指到具体一条；没有就取最近建的那条。
+      let id = requestedId;
+      if (id === null) {
+        const plans = await planList();
+        if (plans.length === 0) {
+          setCard(null);
+          setError(null);
+          return;
+        }
+        id = [...plans].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0].id;
       }
-      const newest = [...plans].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-      const next = await planCard(newest.id);
+      const next = await planCard(id);
       setCard(next);
       setError(null);
 
@@ -99,7 +105,7 @@ export default function PlanPage() {
     } catch (cause: unknown) {
       setError(toMessage(cause));
     }
-  }, []);
+  }, [requestedId]);
 
   useEffect(() => {
     void load();

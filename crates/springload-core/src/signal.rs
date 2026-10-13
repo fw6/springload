@@ -19,6 +19,8 @@ use rusqlite::Connection;
 pub const HIGH_CONFIDENCE: &str = "高";
 /// 触发信号的时间周期。
 pub const TIMEFRAME_1M: &str = "1m";
+/// 已触发信号在 `signal.status` 里的取值。
+pub const STATUS_TRIGGERED: &str = "triggered";
 
 /// 当前卡在哪一级。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -207,7 +209,7 @@ pub fn record_trigger(
         candle_high_broken: trigger.broken_high,
         pre_candle_high: trigger.pre_high,
         zone_id: zone.map(|zone| zone.id.clone()),
-        status: "triggered".to_string(),
+        status: STATUS_TRIGGERED.to_string(),
         created_at: now(),
     };
     signal::upsert(conn, &row)?;

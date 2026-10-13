@@ -110,9 +110,7 @@ fn next_weekday(date: &str) -> String {
 ///
 /// 传入的价格与均线都可能是 `None`（没有行情或日线不足），此时对应的提示不产生。
 pub fn evaluate(
-    entry_price: f64,
     stop: f64,
-    per_r: f64,
     t3: f64,
     t5: f64,
     last: Option<f64>,
@@ -153,7 +151,6 @@ pub fn evaluate(
     } else if last >= t3 {
         push(AlertKind::Reduce3R, REDUCE_3R_MESSAGE);
     }
-    let _ = (entry_price, per_r);
     alerts
 }
 
@@ -203,11 +200,12 @@ pub fn refresh_positions(db: &Database, quotes: &[(String, f64)]) -> Result<Vec<
 
 /// 抓一批代码的实时快照，返回（代码，最新价）。
 ///
-/// 走腾讯 `qt.gtimg.cn`，按 URL 长度上限与单批 900 只代码两个约束切分；
-/// 腾讯对不存在的代码整条省略，所以结果按代码字段配对，不按位置对应。
+/// 主来源是腾讯 `qt.gtimg.cn`，取不到时切到新浪 `hq.sinajs.cn` 这个备用来源。
+/// 两家的批量上限与 URL 长度上限不同，各自按自己的约束切分；腾讯对不存在的代码
+/// 整条省略，新浪返回空占位，两家的结果都按代码字段配对，不按位置对应。
 pub fn fetch_quotes(codes: &[String]) -> Result<Vec<(String, f64)>> {
-    use crate::market::tencent;
     use crate::error::CoreError;
+    use crate::market::{sina, tencent};
     use std::io;
     use std::time::Duration;
 
@@ -222,26 +220,78 @@ pub fn fetch_quotes(codes: &[String]) -> Result<Vec<(String, f64)>> {
 
     let mut out = Vec::new();
     for batch in tencent::snapshot_batches(codes) {
-        let response = client
-            .get(tencent::snapshot_url(&batch))
-            .send()
-            .map_err(|error| CoreError::Io(io::Error::other(format!("请求腾讯快照失败: {error}"))))?;
-        let status = response.status();
-        if !status.is_success() {
-            return Err(CoreError::InvalidData(format!(
-                "腾讯快照返回 HTTP {}",
-                status.as_u16()
-            )));
-        }
-        let bytes = response
-            .bytes()
-            .map_err(|error| CoreError::Io(io::Error::other(format!("读取腾讯快照失败: {error}"))))?;
-        let (body, _, _) = encoding_rs::GB18030.decode(&bytes);
-        for snapshot in tencent::parse_snapshots(&body)? {
-            out.push((snapshot.code, snapshot.last));
+        match tencent_quotes(&client, &batch) {
+            Ok(quotes) => out.extend(quotes),
+            Err(error) => {
+                eprintln!("腾讯快照不可用，改用新浪: {error}");
+                // 新浪的批量上限比腾讯小，切过去时要按新浪的约束重新分批。
+                for sina_batch in sina::list_batches(&batch) {
+                    out.extend(sina_quotes(&client, &sina_batch)?);
+                }
+            }
         }
     }
     Ok(out)
+}
+
+/// 走腾讯抓一批快照。
+fn tencent_quotes(
+    client: &reqwest::blocking::Client,
+    batch: &[String],
+) -> Result<Vec<(String, f64)>> {
+    use crate::error::CoreError;
+    use crate::market::tencent;
+    use std::io;
+
+    let response = client
+        .get(tencent::snapshot_url(batch))
+        .send()
+        .map_err(|error| CoreError::Io(io::Error::other(format!("请求腾讯快照失败: {error}"))))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(CoreError::InvalidData(format!(
+            "腾讯快照返回 HTTP {}",
+            status.as_u16()
+        )));
+    }
+    let bytes = response
+        .bytes()
+        .map_err(|error| CoreError::Io(io::Error::other(format!("读取腾讯快照失败: {error}"))))?;
+    let (body, _, _) = encoding_rs::GB18030.decode(&bytes);
+    Ok(tencent::parse_snapshots(&body)?
+        .into_iter()
+        .map(|snapshot| (snapshot.code, snapshot.last))
+        .collect())
+}
+
+/// 走新浪抓一批快照。请求必须带 `sina.com.cn` 域的 `Referer`，响应是 GB18030。
+fn sina_quotes(
+    client: &reqwest::blocking::Client,
+    batch: &[String],
+) -> Result<Vec<(String, f64)>> {
+    use crate::error::CoreError;
+    use crate::market::sina;
+    use std::io;
+
+    let response = client
+        .get(sina::list_url(batch))
+        .header(reqwest::header::REFERER, sina::REFERER)
+        .send()
+        .map_err(|error| CoreError::Io(io::Error::other(format!("请求新浪快照失败: {error}"))))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(CoreError::InvalidData(format!(
+            "新浪快照返回 HTTP {}",
+            status.as_u16()
+        )));
+    }
+    let bytes = response
+        .bytes()
+        .map_err(|error| CoreError::Io(io::Error::other(format!("读取新浪快照失败: {error}"))))?;
+    Ok(sina::parse_snapshots(&sina::decode(&bytes))?
+        .into_iter()
+        .map(|snapshot| (snapshot.code, snapshot.last))
+        .collect())
 }
 
 /// 拼一行持仓视图。
@@ -269,9 +319,7 @@ fn build_view(
     let ema9 = ema9_of(&bars);
     let last = quote.or_else(|| latest_close(&bars));
     let alerts = evaluate(
-        row.entry_price,
         row.current_stop,
-        per_r,
         t3,
         t5,
         last,
@@ -416,9 +464,7 @@ mod tests {
     fn stop_loss_fires_at_or_below_the_stop() {
         let days = calendar();
         let alerts = evaluate(
-            20.0,
             19.5,
-            0.5,
             21.5,
             22.5,
             Some(19.5),
@@ -441,9 +487,7 @@ mod tests {
     fn below_ema9_only_fires_when_the_remainder_follows_the_ema() {
         let days = calendar();
         let with_follow = evaluate(
-            20.0,
             19.0,
-            0.5,
             21.5,
             22.5,
             Some(19.8),
@@ -456,9 +500,7 @@ mod tests {
         assert!(with_follow.iter().any(|alert| alert.kind == AlertKind::BelowEma9));
 
         let without_follow = evaluate(
-            20.0,
             19.0,
-            0.5,
             21.5,
             22.5,
             Some(19.8),
@@ -475,9 +517,7 @@ mod tests {
     fn reaching_3r_and_5r_give_the_reduce_hints() {
         let days = calendar();
         let at_3r = evaluate(
-            20.0,
             19.5,
-            0.5,
             21.5,
             22.5,
             Some(21.5),
@@ -491,9 +531,7 @@ mod tests {
         assert!(!at_3r.iter().any(|alert| alert.kind == AlertKind::Reduce5R));
 
         let at_5r = evaluate(
-            20.0,
             19.5,
-            0.5,
             21.5,
             22.5,
             Some(22.5),
@@ -511,9 +549,7 @@ mod tests {
     fn no_quote_means_no_alerts() {
         let days = calendar();
         let alerts = evaluate(
-            20.0,
             19.5,
-            0.5,
             21.5,
             22.5,
             None,

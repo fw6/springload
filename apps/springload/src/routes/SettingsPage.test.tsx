@@ -75,6 +75,34 @@ describe("设置页", () => {
     });
   });
 
+  it("费用模型默认关闭，开启并改佣金费率后一起写回", async () => {
+    renderSettings();
+
+    expect((await screen.findByLabelText("费用模型（交易日志逐笔扣减）") as HTMLSelectElement).value).toBe(
+      "off",
+    );
+    expect((screen.getByLabelText("佣金费率（%，含单笔最低 5 元）") as HTMLInputElement).value).toBe(
+      "0.025",
+    );
+
+    fireEvent.change(screen.getByLabelText("费用模型（交易日志逐笔扣减）"), {
+      target: { value: "on" },
+    });
+    fireEvent.change(screen.getByLabelText("佣金费率（%，含单笔最低 5 元）"), {
+      target: { value: "0.03" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenCalledWith(
+        "settings_update",
+        expect.objectContaining({
+          patch: expect.objectContaining({ feeModelEnabled: true, commissionRate: 0.0003 }),
+        }),
+      );
+    });
+  });
+
   it("CSV 导入成功后显示写入与跳过行数", async () => {
     renderSettings({
       import_bars_csv: { rows: 2, skipped: 1, errors: ["第 3 行第 3 列「open」不是数字：abc"] },

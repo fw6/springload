@@ -244,7 +244,7 @@ export default function PositionsPage() {
                       {price(plan.t3)} / {price(plan.t5)}
                     </td>
                     <td className="left">
-                      <NavLink className="ghost" to="/plan">
+                      <NavLink className="ghost" to={`/plan?id=${plan.id}`}>
                         在计划卡打开
                       </NavLink>
                     </td>

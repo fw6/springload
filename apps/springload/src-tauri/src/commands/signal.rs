@@ -14,6 +14,18 @@ use tauri::{AppHandle, Emitter, Manager, State};
 /// 一轮轮询结束的事件名。
 pub const POLL_TICK_EVENT: &str = "poll://tick";
 
+/// 触发点在分钟图上的位置。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignalTriggerView {
+    /// 触发那根分钟线的时间，`YYYY-MM-DD HH:MM`。
+    pub ts: String,
+    /// 触发那根分钟线的最高价。
+    pub broken_high: f64,
+    /// 前一根分钟线的最高价。
+    pub pre_high: f64,
+}
+
 /// `signal_status` 与 `signal_evaluate` 的返回。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,22 +36,47 @@ pub struct SignalStatusView {
     pub zone: Option<SupportZoneView>,
     /// 当前卡在哪一级的可展示说明。
     pub detail: String,
+    /// 已落库的触发点；还没触发过时为 `None`。
+    pub trigger: Option<SignalTriggerView>,
 }
 
-impl From<signal::SignalStatus> for SignalStatusView {
-    fn from(status: signal::SignalStatus) -> Self {
-        let zone_id = status.zone.as_ref().map(|zone| zone.id.clone());
-        Self {
+impl SignalStatusView {
+    /// 组装对外状态。
+    ///
+    /// 触发点优先取本次新判定出来的那条，没有就回落到已落库的那条，这样反复刷新
+    /// 面板不会让分钟图上的标记闪没。
+    fn build(
+        conn: &springload_core::storage::DbConn,
+        code: &str,
+        status: signal::SignalStatus,
+    ) -> Result<Self, String> {
+        let stored = springload_core::storage::signal::latest_for_code(conn, code)
+            .map_err(|error| error.to_string())?
+            .filter(|row| row.status == signal::STATUS_TRIGGERED);
+        let trigger = match status.trigger {
+            Some(trigger) => Some(SignalTriggerView {
+                ts: trigger.ts,
+                broken_high: trigger.broken_high,
+                pre_high: trigger.pre_high,
+            }),
+            None => stored.map(|row| SignalTriggerView {
+                ts: row.triggered_at,
+                broken_high: row.candle_high_broken,
+                pre_high: row.pre_candle_high,
+            }),
+        };
+        Ok(Self {
             stage: match status.stage {
                 Stage::Waiting => "waiting",
                 Stage::Triggered => "triggered",
                 Stage::Failed => "failed",
             }
             .to_string(),
-            zone_id,
+            zone_id: status.zone.as_ref().map(|zone| zone.id.clone()),
             zone: status.zone.map(SupportZoneView::from),
             detail: status.detail,
-        }
+            trigger,
+        })
     }
 }
 
@@ -47,9 +84,8 @@ impl From<signal::SignalStatus> for SignalStatusView {
 #[tauri::command]
 pub fn signal_status(state: State<'_, AppState>, code: String) -> Result<SignalStatusView, String> {
     let conn = state.db().conn().map_err(|error| error.to_string())?;
-    signal::evaluate(&conn, &code)
-        .map(SignalStatusView::from)
-        .map_err(|error| error.to_string())
+    let status = signal::evaluate(&conn, &code).map_err(|error| error.to_string())?;
+    SignalStatusView::build(&conn, &code, status)
 }
 
 /// 抓一次这只股票的当日 1 分钟线，再判定触发；触发时写进 `signal` 表。
@@ -67,7 +103,7 @@ pub fn signal_evaluate(
         signal::record_trigger(&conn, &code, status.zone.as_ref(), trigger)
             .map_err(|error| error.to_string())?;
     }
-    Ok(SignalStatusView::from(status))
+    SignalStatusView::build(&conn, &code, status)
 }
 
 /// 手动跑一轮轮询：刷新等待触发的股票与持仓的当日 1 分钟线，判定触发。

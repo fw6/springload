@@ -36,6 +36,8 @@ function pagePatch(settings: Settings): SettingsPatch {
     rankBand: settings.rankBand,
     convergenceThreshold: settings.convergenceThreshold,
     autostart: settings.autostart,
+    feeModelEnabled: settings.feeModelEnabled,
+    commissionRate: settings.commissionRate,
   };
 }
 
@@ -247,6 +249,36 @@ export default function SettingsPage() {
                 patch({ convergenceThreshold: Number(event.target.value) / 100 })
               }
             />
+          </div>
+
+          <div className="field-row">
+            <div className="field">
+              <label htmlFor="fee-model">费用模型（交易日志逐笔扣减）</label>
+              <select
+                id="fee-model"
+                value={draft.feeModelEnabled ? "on" : "off"}
+                onChange={(event) => patch({ feeModelEnabled: event.target.value === "on" })}
+              >
+                <option value="on">开启</option>
+                <option value="off">关闭</option>
+              </select>
+              <span className="hint">
+                默认关闭。开启后按印花税、过户费、经手费、证管费与佣金逐笔扣减。
+              </span>
+            </div>
+            <div className="field">
+              <label htmlFor="commission-rate">佣金费率（%，含单笔最低 5 元）</label>
+              <input
+                id="commission-rate"
+                type="number"
+                step="0.001"
+                min="0"
+                value={toPercent(draft.commissionRate)}
+                onChange={(event) =>
+                  patch({ commissionRate: Number(event.target.value) / 100 })
+                }
+              />
+            </div>
           </div>
 
           <div className="field">

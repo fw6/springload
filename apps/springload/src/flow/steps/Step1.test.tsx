@@ -258,4 +258,25 @@ describe("第 1 步：筛选表", () => {
       );
     });
   });
+
+  it("点还没解锁的步骤给出原因，不跳过去", async () => {
+    renderFlow();
+    await screen.findByText("入选（2 只）");
+
+    // 选中一只股票之后 Rust 会重新判定解锁状态：第 3、4 步仍锁着。
+    fireEvent.click(rowOf("甲股"));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /等待买入信号/ }).getAttribute("aria-disabled"),
+      ).toBe("true");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /等待买入信号/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("第 3 步 · 等待买入信号");
+    expect(dialog.textContent).toContain("先在第 2 步完成支撑区标注");
+    // 面板还停在第 1 步，没有被切到锁着的那一步。
+    expect(screen.getByRole("heading", { name: "强势股筛选" })).toBeTruthy();
+  });
 });

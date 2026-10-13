@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "../api/invoke";
+import { invoke, toMessage } from "../api/invoke";
 import type {
   Period,
   SignalStatus,
@@ -25,6 +25,8 @@ export interface Flow {
   canEnter: (s: StepIndex) => boolean;
   selected: string | null;
   selectStock: (code: string) => void;
+  /** 读共享状态（观察名单、解锁状态）失败的原因；取到了就是 null。 */
+  loadError: string | null;
   watchlist: WatchlistRow[];
   reloadWatchlist: () => Promise<void>;
   period: Period;
@@ -60,6 +62,7 @@ export function useFlow(): Flow {
   const [unlock, setUnlock] = useState<StepUnlock>(INITIAL_UNLOCK);
   const [selected, setSelected] = useState<string | null>(null);
   const [watchlist, setWatchlist] = useState<WatchlistRow[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>("day");
   const [tool, setTool] = useState<ToolId>("none");
   const [avwapStartDate, setAvwapStartDate] = useState<string | null>(null);
@@ -68,23 +71,19 @@ export function useFlow(): Flow {
   const [collapsed, setCollapsed] = useState(false);
 
   const reloadWatchlist = useCallback(async () => {
-    try {
-      setWatchlist(await invoke<WatchlistRow[]>("watchlist_get"));
-    } catch {
-      setWatchlist([]);
-    }
+    setWatchlist(await invoke<WatchlistRow[]>("watchlist_get"));
+    setLoadError(null);
   }, []);
 
   useEffect(() => {
-    void reloadWatchlist();
+    reloadWatchlist().catch((failure: unknown) => {
+      setLoadError(toMessage(failure));
+    });
   }, [reloadWatchlist]);
 
   const reloadUnlock = useCallback(async (code: string) => {
-    try {
-      setUnlock(await invoke<StepUnlock>("step_unlock", { code }));
-    } catch {
-      setUnlock(INITIAL_UNLOCK);
-    }
+    setUnlock(await invoke<StepUnlock>("step_unlock", { code }));
+    setLoadError(null);
   }, []);
 
   const canEnter = useCallback((target: StepIndex) => unlock.unlocked[target - 1], [unlock]);
@@ -105,7 +104,10 @@ export function useFlow(): Flow {
       setSelected(code);
       setSignal(null);
       setAvwapStartDate(null);
-      void reloadUnlock(code);
+      // 读不到解锁状态时保留上一次的结果，把原因交给页面显示。
+      reloadUnlock(code).catch((failure: unknown) => {
+        setLoadError(toMessage(failure));
+      });
       setStep(2);
     },
     [reloadUnlock],
@@ -119,6 +121,7 @@ export function useFlow(): Flow {
     canEnter,
     selected,
     selectStock,
+    loadError,
     watchlist,
     reloadWatchlist,
     period,

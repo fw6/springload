@@ -6,7 +6,7 @@ use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use springload_core::backfill::{self, HttpFetch, SyncOptions, SyncReport, SyncStatus};
 use springload_core::market::Bar;
-use springload_core::storage::{bar, bar_sync_state, stock};
+use springload_core::storage::{bar, bar_minute, bar_sync_state, stock};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -95,40 +95,8 @@ pub fn bars_get(
     let minutes: u32 = period
         .parse()
         .map_err(|_| format!("不支持的周期 {period}，只接受 day 或分钟数"))?;
-    read_minute_bars(&conn, &code, minutes)
-}
-
-/// 读 `bar_minute` 表。分钟线由 #17 写入，这里按已冻结的命令签名读取。
-fn read_minute_bars(
-    conn: &springload_core::storage::DbConn,
-    code: &str,
-    period: u32,
-) -> Result<Vec<Bar>, String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT code, ts, open, high, low, close, volume, amount
-             FROM bar_minute WHERE code = ?1 AND period = ?2 ORDER BY ts",
-        )
-        .map_err(|error| error.to_string())?;
-    let rows = stmt
-        .query_map(rusqlite::params![code, period], |row| {
-            Ok(Bar {
-                code: row.get(0)?,
-                date: row.get(1)?,
-                open: row.get(2)?,
-                high: row.get(3)?,
-                low: row.get(4)?,
-                close: row.get(5)?,
-                volume: row.get(6)?,
-                amount: row.get(7)?,
-            })
-        })
-        .map_err(|error| error.to_string())?;
-    let mut out = Vec::new();
-    for row in rows {
-        out.push(row.map_err(|error| error.to_string())?);
-    }
-    Ok(out)
+    let rows = bar_minute::list(&conn, &code, minutes).map_err(|error| error.to_string())?;
+    Ok(rows.into_iter().map(Bar::from).collect())
 }
 
 /// 起收盘后自动回补的定时任务。由 `app.rs` 的装配过程调用一次。

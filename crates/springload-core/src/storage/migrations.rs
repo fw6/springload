@@ -1,8 +1,8 @@
-//! 全部建表 SQL。
+//! 全部建表 SQL 与后续的结构变更。
 //!
 //! 迁移是一组按序号排列的 SQL 字符串，从空库一次跑到最新版本；版本号记在
 //! SQLite 的 `user_version` 上，已应用的迁移不会重复执行，所以重复运行不报错。
-//! 全部表在本 ticket 建好，后续 ticket 只读写，不新增迁移。
+//! 已发布的条目不允许改动，结构变更一律往后追加新条目。
 
 use crate::error::Result;
 use rusqlite::Connection;
@@ -145,8 +145,15 @@ CREATE TABLE setting (
 );
 "#;
 
+/// 序号 2：观察名单区分筛选自动入选与手工补充。
+///
+/// 手工补充的行（`manual = 1`）不参与筛选的整表替换。
+const V2_WATCHLIST_MANUAL: &str = r#"
+ALTER TABLE watchlist_item ADD COLUMN manual INTEGER NOT NULL DEFAULT 0;
+"#;
+
 /// 按序号排列的迁移列表。新增迁移只往后追加，不改动已发布的条目。
-pub const MIGRATIONS: &[&str] = &[V1_INITIAL_SCHEMA];
+pub const MIGRATIONS: &[&str] = &[V1_INITIAL_SCHEMA, V2_WATCHLIST_MANUAL];
 
 /// 从当前版本跑到最新版本。已应用的迁移会跳过。
 pub fn run(conn: &mut Connection) -> Result<()> {

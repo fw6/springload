@@ -206,6 +206,22 @@ describe("交易计划卡", () => {
     expect(button.disabled).toBe(true);
   });
 
+  it("带 ?id= 时打开指定的那条计划，不取最近一条", async () => {
+    // 前面几条用例的调用记录还留着，这里只看本次渲染发了哪些命令。
+    mockedInvoke.mockClear();
+    renderAt(
+      "/plan?id=plan-600036-9",
+      <GlossaryProvider>
+        <PlanPage />
+      </GlossaryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenCalledWith("plan_card", { id: "plan-600036-9" });
+    });
+    expect(mockedInvoke).not.toHaveBeenCalledWith("plan_list", expect.anything());
+  });
+
   it("没有计划时给出回到主流程的入口", async () => {
     plans = [];
     renderPlan();

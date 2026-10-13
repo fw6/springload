@@ -8,7 +8,7 @@ use springload_core::storage::bar::BarRow;
 use springload_core::storage::signal::Signal;
 use springload_core::storage::stock::Stock;
 use springload_core::storage::support_zone::SupportZone;
-use springload_core::storage::{bar, signal, stock, support_zone, Database};
+use springload_core::storage::{bar, signal, stock, support_zone, watchlist, Database};
 use springload_lib::commands;
 use springload_lib::state::AppState;
 use tauri::ipc::{CallbackFn, InvokeBody};
@@ -386,6 +386,52 @@ fn watchlist_add_and_remove_track_the_screen_judgment() {
         .expect("watchlist_get 成功");
     assert_eq!(rows.as_array().unwrap().len(), 1);
     assert_eq!(rows[0]["code"], PASS);
+}
+
+#[test]
+fn screening_keeps_manually_added_stocks() {
+    let dir = tempfile::tempdir().unwrap();
+    let harness = Harness::new(dir.path());
+    seed(&harness.db);
+    harness.screen();
+
+    // 手工补一只筛选没抓到的股票。
+    harness
+        .invoke("watchlist_add", json!({ "code": C2_MISS }))
+        .expect("加进观察名单");
+
+    // 再跑一次筛选：自动入选的整表替换，手工补充的留在名单里。
+    harness.screen();
+    let rows = harness
+        .invoke("watchlist_get", Value::Null)
+        .expect("watchlist_get 成功");
+    let codes: Vec<&str> = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["code"].as_str().unwrap())
+        .collect();
+    assert_eq!(codes.len(), 2, "{codes:?}");
+    assert!(codes.contains(&PASS), "{codes:?}");
+    assert!(codes.contains(&C2_MISS), "{codes:?}");
+}
+
+#[test]
+fn watchlist_add_marks_an_auto_picked_stock_as_manual() {
+    let dir = tempfile::tempdir().unwrap();
+    let harness = Harness::new(dir.path());
+    seed(&harness.db);
+    harness.screen();
+
+    // 手工再加一次自动入选的那只：判定不变，标记变成手工。
+    harness
+        .invoke("watchlist_add", json!({ "code": PASS }))
+        .expect("手工加进观察名单");
+    let conn = harness.db.conn().unwrap();
+    let stored = watchlist::get(&conn, PASS).unwrap().expect("名单里有这只");
+    assert!(stored.manual);
+    assert!(stored.c1);
+    assert!(!stored.c4);
 }
 
 #[test]

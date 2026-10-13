@@ -51,12 +51,24 @@ export interface SupportZoneView {
   spread: number | null;
 }
 
+/** 触发点在分钟图上的位置。 */
+export interface SignalTrigger {
+  /** 触发那根分钟线的时间，`YYYY-MM-DD HH:MM`。 */
+  ts: string;
+  /** 触发那根分钟线的最高价。 */
+  brokenHigh: number;
+  /** 前一根分钟线的最高价。 */
+  preHigh: number;
+}
+
 /** `signal_status` 命令的返回。 */
 export interface SignalStatus {
   stage: "waiting" | "triggered" | "failed";
   zoneId: string | null;
   zone: SupportZoneView | null;
   detail: string;
+  /** 已落库的触发点；还没触发过时为 null。 */
+  trigger: SignalTrigger | null;
 }
 
 /** `plan_calc` 的入参。 */

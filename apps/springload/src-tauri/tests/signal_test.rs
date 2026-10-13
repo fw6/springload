@@ -254,6 +254,36 @@ fn dip_recovery_then_breaking_the_previous_high_triggers() {
     let detail = value["detail"].as_str().unwrap();
     assert!(detail.contains("已触发"), "detail 应是已触发，实际是 {detail}");
     assert!(detail.contains("超过前一根最高"), "detail 应写明突破，实际是 {detail}");
+    // 触发点带上时间与前后高点，供分钟图标出位置。
+    assert_eq!(value["trigger"]["ts"], "2026-10-13 09:34");
+    assert_eq!(value["trigger"]["brokenHigh"], 10.06);
+    assert_eq!(value["trigger"]["preHigh"], 10.04);
+}
+
+#[test]
+fn the_trigger_point_stays_visible_after_it_is_recorded() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_daily(dir.path(), 10.05);
+    seed_high_confidence_zone(dir.path());
+    triggered_minutes(dir.path());
+    let harness = Harness::new(dir.path());
+
+    // 第一次判定把信号落库，之后再读状态时触发点仍然在。
+    let first = status(&harness);
+    assert_eq!(first["trigger"]["ts"], "2026-10-13 09:34");
+    let again = status(&harness);
+    assert_eq!(again["trigger"]["ts"], "2026-10-13 09:34");
+    assert_eq!(again["trigger"]["brokenHigh"], 10.06);
+}
+
+#[test]
+fn no_trigger_point_before_the_breakout() {
+    let dir = tempfile::tempdir().unwrap();
+    seed_daily(dir.path(), 10.05);
+    seed_high_confidence_zone(dir.path());
+    let harness = Harness::new(dir.path());
+
+    assert_eq!(status(&harness)["trigger"], Value::Null);
 }
 
 #[test]

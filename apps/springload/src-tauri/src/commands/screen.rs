@@ -79,6 +79,8 @@ pub fn watchlist_get(state: State<'_, AppState>) -> Result<Vec<WatchlistRow>, St
 }
 
 /// 手工把一只股票加进观察名单。判定取值取最近一次筛选结果，筛不到就用空判定。
+///
+/// 加进来的行带手工标记，之后的筛选只替换自动入选的行，不会把它冲掉。
 #[tauri::command]
 pub fn watchlist_add(state: State<'_, AppState>, code: String) -> Result<(), String> {
     let conn = state.db().conn().map_err(|error| error.to_string())?;
@@ -87,12 +89,6 @@ pub fn watchlist_add(state: State<'_, AppState>, code: String) -> Result<(), Str
         .is_none()
     {
         return Err(format!("股票 {code} 不在股票池里"));
-    }
-    if watchlist::get(&conn, &code)
-        .map_err(|error| error.to_string())?
-        .is_some()
-    {
-        return Ok(());
     }
 
     let added_at = storage::now();
@@ -105,7 +101,7 @@ pub fn watchlist_add(state: State<'_, AppState>, code: String) -> Result<(), Str
             .find(|row| row.code == code)
             .map(|row| (row, report.ran_at.as_str()))
     });
-    let item = match judged {
+    let mut item = match judged {
         Some((row, ran_at)) => row.to_watchlist_item(&added_at, ran_at),
         None => WatchlistItem {
             code,
@@ -121,8 +117,10 @@ pub fn watchlist_add(state: State<'_, AppState>, code: String) -> Result<(), Str
             avg_amount: None,
             convergence: None,
             screen_run_at: String::new(),
+            manual: false,
         },
     };
+    item.manual = true;
     watchlist::upsert(&conn, &item).map_err(|error| error.to_string())
 }
 

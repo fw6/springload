@@ -5,6 +5,8 @@
 //! `flow/useFlow.ts` 的落框计数。
 
 use crate::error::{CoreError, Result};
+use crate::indicators;
+use crate::market::Bar;
 use crate::storage::bar::BarRow;
 use serde::{Deserialize, Serialize};
 
@@ -180,34 +182,16 @@ fn finite_values(refs: &ZoneRefs) -> Vec<f64> {
 
 /// 收盘价序列的 EMA 末值。不足 `period` 根返回 `None`。
 fn ema_last(closes: &[f64], period: usize) -> Option<f64> {
-    if period == 0 || closes.len() < period {
-        return None;
-    }
-    let alpha = 2.0 / (period as f64 + 1.0);
-    let mut value = closes[..period].iter().sum::<f64>() / period as f64;
-    for &close in &closes[period..] {
-        value = close * alpha + value * (1.0 - alpha);
-    }
-    Some(value)
+    indicators::ema(closes, period)
+        .last()
+        .copied()
+        .filter(|value| value.is_finite())
 }
 
 /// 从 `start` 起按成交量加权的平均成本价，典型价取 `(high + low + close) / 3`。
 fn avwap_from(bars: &[&BarRow], start: usize) -> Option<f64> {
-    if start >= bars.len() {
-        return None;
-    }
-    let mut pv = 0.0;
-    let mut volume = 0.0;
-    for bar in &bars[start..] {
-        let typical = (bar.high + bar.low + bar.close) / 3.0;
-        pv += typical * bar.volume;
-        volume += bar.volume;
-    }
-    if volume <= 0.0 {
-        None
-    } else {
-        Some(pv / volume)
-    }
+    let owned: Vec<Bar> = bars.iter().map(|row| Bar::from((*row).clone())).collect();
+    indicators::avwap(&owned, start)
 }
 
 /// 前期高点的窗口：末尾跳过 `PREV_HIGH_SKIP` 根，再往前取 `PREV_HIGH_LOOKBACK` 根。

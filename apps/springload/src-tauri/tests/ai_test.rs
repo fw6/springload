@@ -150,6 +150,7 @@ fn seed_watchlist(db: &Database) {
             avg_amount: Some(2.0e8),
             convergence: Some(0.069),
             screen_run_at: "2025-03-20T00:00:00Z".to_string(),
+            manual: false,
         },
     )
     .expect("写观察名单");

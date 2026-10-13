@@ -105,6 +105,7 @@ fn seed_stock(dir: &std::path::Path) {
             avg_amount: Some(2e8),
             convergence: Some(0.1),
             screen_run_at: springload_core::storage::now(),
+            manual: false,
         },
     )
     .unwrap();
@@ -299,7 +300,9 @@ fn list_filters_by_status() {
     let mut second = example_plan();
     second["plan"]["entry"] = json!(30.0);
     second["plan"]["stop"] = json!(29.0);
-    harness.invoke("plan_save", second).unwrap();
+    let second = harness.invoke("plan_save", second).unwrap();
+    // 同一毫秒内连存两条也不能撞上同一个 id，否则第二条会覆盖第一条。
+    assert_ne!(first["id"], second["id"]);
     harness
         .invoke(
             "plan_set_status",

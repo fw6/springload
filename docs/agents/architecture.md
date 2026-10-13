@@ -64,21 +64,23 @@ crates/springload-core/     # 领域核心
 | `storage/stock.rs`、`storage/bar.rs`、`storage/bar_sync_state.rs`、`storage/watchlist.rs`、`storage/support_zone.rs`、`storage/signal.rs`、`storage/trade_plan.rs`、`storage/position.rs`、`storage/trade_log.rs`、`storage/setting.rs` | #11 | 各表的读写（表的所有者 ticket 可以在自己的那张表的模块里追加函数） |
 | `storage/corporate_action.rs` | #13 | 除权除息事件的读写 |
 | `storage/bar_minute.rs` | #17 | 分钟线读写 |
-| `market/mod.rs` | #12 | `Bar`、`Snapshot`、`QuoteSource` 与适配器选择 |
-| `market/eastmoney.rs` | #12 | 东方财富适配器 |
-| `market/tencent.rs` | #12 | 腾讯适配器 |
-| `market/sina.rs` | #12 | 新浪适配器 |
+| `market/mod.rs` | #12 | `Bar`、`MinuteBar`、`Snapshot` 与三个适配器的统一形状 |
+| `market/eastmoney.rs` | #12 | 东方财富适配器（日线、分钟线、股票列表） |
+| `market/tencent.rs` | #12 | 腾讯适配器（盘中快照） |
+| `market/sina.rs` | #12 | 新浪适配器（盘中快照，腾讯取不到时的备用来源） |
 | `market/url_budget.rs` | #12 | 批量请求的 URL 长度切分 |
 | `backfill.rs` | #12 | 股票池与日线回补 |
 | `adjustment.rs` | #13 | 前复权换算与过期判定 |
 | `indicators.rs` | #14 | `ema`、`avwap`、`change`、`convergence`、`r_multiple` |
 | `screening.rs` | #14 | C1~C4 与剔除条件 |
 | `flow.rs` | #14 | 四步解锁判定（读 watchlist / support_zone / signal 三张表） |
-| `ai/mod.rs`、`ai/prompts.rs`、`ai/cache.rs` | #15 | Rig 接 DeepSeek、五段解释、缓存 |
+| `ai/mod.rs`、`ai/prompts.rs`、`ai/cache.rs`、`ai/context.rs` | #15 | Rig 接 DeepSeek、五段解释、缓存、上下文取数 |
 | `support.rs` | #16 | 支撑区置信度（与收盘后批处理共用） |
+| `minute.rs` | #17 | 分钟线抓取、每分钟轮询与触发落库 |
 | `signal.rs` | #17 | 两级触发判定 |
 | `sizing.rs` | #18 | 仓位计算与减仓股数 |
-| `alerts.rs` | #20 | 持仓三类提示与 T+1 日期计算 |
+| `plan.rs` | #19 | 计划卡：存计划、确认执行时写持仓与入场记录 |
+| `alerts.rs` | #20 | 持仓三类提示、T+1 日期计算与实时快照取数 |
 | `fees.rs` | #21 | 费用模型 |
 | `journal.rs` | #21 | 日志统计 |
 
@@ -142,15 +144,13 @@ pub struct Snapshot {
     pub status: TradeStatus,   // Trading | Suspended | Delisted | Unknown
     pub captured_at: String,
 }
-
-pub enum QuoteSource { Eastmoney, Sina }
 ```
 
 `Bar` 与 `MinuteBar` 里 `volume` 为 0 或日期缺口都表示当天没有交易；指标计算必须跳过这些 bar，不得当成 0 参与。
 
 ## 5. SQLite 表结构（冻结）
 
-库文件 `~/.springload/springload.db`。迁移是 `storage/migrations.rs` 里的一组按序号排列的 SQL 字符串，从空库一次跑到最新版本，重复运行不报错。全部表在 #11 建好，后续 ticket 只读写，不新增迁移。
+库文件 `~/.springload/springload.db`。迁移是 `storage/migrations.rs` 里的一组按序号排列的 SQL 字符串，从空库一次跑到最新版本，重复运行不报错。全部表在 #11 建好，后续 ticket 只读写；结构变更往后追加新迁移，已发布的条目不改动。
 
 ```sql
 CREATE TABLE stock (
@@ -208,7 +208,8 @@ CREATE TABLE watchlist_item (
   c1 INTEGER NOT NULL, c2 INTEGER NOT NULL, c3 INTEGER NOT NULL, c4 INTEGER NOT NULL,
   chg_1m REAL, chg_3m REAL, chg_6m REAL,
   rank_pct REAL, avg_amount REAL, convergence REAL,
-  screen_run_at TEXT NOT NULL
+  screen_run_at TEXT NOT NULL,
+  manual INTEGER NOT NULL DEFAULT 0   -- 迁移 2 追加：手工补充的行，筛选只替换 manual = 0 的行
 );
 
 CREATE TABLE support_zone (
@@ -342,7 +343,7 @@ pub struct Settings {
 | `support_zone_save` | #16 | `(zone: SupportZoneInput) -> SupportZoneView` |
 | `support_zone_delete` | #16 | `(id: String) -> ()` |
 | `support_refs` | #16 | `(code: String, avwapStartDate: Option<String>) -> ZoneRefs { ema21, avwap, prevHigh }` |
-| `signal_status` | #17 | `(code: String) -> SignalStatus { stage, zoneId, zone, detail }` |
+| `signal_status` | #17 | `(code: String) -> SignalStatus { stage, zoneId, zone, detail, trigger }` |
 | `signal_evaluate` | #17 | `(code: String) -> SignalStatus` |
 | `poll_tick` | #17 | `() -> PollReport { waiting, positions, triggered }` |
 | `plan_calc` | #18 | `(input: SizingInput) -> SizingResult` |
@@ -355,7 +356,7 @@ pub struct Settings {
 | `positions_get` | #20 | `() -> Vec<PositionView>` |
 | `positions_refresh_quotes` | #20 | `() -> Vec<PositionView>` |
 | `position_exit` | #20 | `(id: String, exitPrice: f64, exitDate: String) -> TradeLogEntry` |
-| `journal_get` | #21 | `() -> JournalView { entries, stats, fee_model_enabled }` |
+| `journal_get` | #21 | `() -> JournalView { entries, stats, fee_model_enabled, commission_rate }` |
 | `journal_add_manual` | #21 | `(entry: ManualEntry) -> TradeLogEntry` |
 | `journal_export_csv` | #21 | `(path: String) -> ()` |
 | `journal_review` | #21 | `() -> Explanation` |
@@ -386,8 +387,12 @@ pub struct Settings {
 | `api/positions.ts` | #20 |
 | `api/journal.ts` | #21 |
 | `components/TermHint.tsx`、`components/Tooltip.tsx`、`components/Modal.tsx`、`components/ConfidencePill.tsx`、`components/Flag.tsx`、`components/StepGate.tsx` | #11 |
+| `components/SyncPanel.tsx` | #12 |
+| `components/AdjustmentPanel.tsx` | #13 |
 | `components/AiCard.tsx` | #15 |
+| `chart/zoneStore.ts`（标注列表的外部状态源，图表与第 2 步面板共用） | #16 |
 | `copy/GlossaryContext.tsx`（启动时取一次 `glossary` 命令，放 context） | #11 |
+| `copy/BeginnerModeContext.tsx`（小白模式开关与首次启动风险提示） | #22 |
 | `copy/riskNotes.ts`（需求文档第 8 章风险提示文案） | #11 |
 | `api/types.ts`（跨 ticket 的 DTO 类型：`StepIndex`、`ToolId`、`Period`、`StepUnlock`、`WatchlistRow`、`SupportZoneView`、`SignalStatus`、`SizingInput` 等） | #11 |
 | `test-utils.tsx`（vitest 的 `invoke` 桩与 memory router 渲染辅助） | #11 |
@@ -417,6 +422,7 @@ export interface Flow {
   canEnter: (s: StepIndex) => boolean
   selected: string | null
   selectStock: (code: string) => void
+  loadError: string | null     // 读观察名单或解锁状态失败的原因
   watchlist: WatchlistRow[]
   reloadWatchlist: () => Promise<void>
   period: 'day' | 'minute'
