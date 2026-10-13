@@ -15,6 +15,7 @@ pub mod indicators;
 pub mod market;
 pub mod screening;
 pub mod storage;
+pub mod support;
 
 pub use config::{Settings, SettingsLoad, SettingsPatch};
 pub use error::{CoreError, Result};
