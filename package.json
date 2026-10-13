@@ -1,0 +1,12 @@
+{
+  "name": "springload-workspace",
+  "private": true,
+  "packageManager": "pnpm@12.11.2",
+  "scripts": {
+    "dev": "pnpm --filter springload tauri dev",
+    "build": "pnpm --filter springload build",
+    "tauri": "pnpm --filter springload tauri",
+    "check": "pnpm --filter springload exec tsc --noEmit",
+    "test": "pnpm -r test"
+  }
+}

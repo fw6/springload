@@ -1,0 +1,6 @@
+{
+  "name": "springload-core",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Rust 核心 crate 的 npm 侧占位，只为让 pnpm workspace 的 crate 图与 npm 图一次解析。"
+}
