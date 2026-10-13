@@ -1,0 +1,54 @@
+apps/springload/src-tauri/src/app.rs
+  s_bfd54e4da0576d::t_8f972a797bb86e 36
+  s_bfd54e4da0576d::t_a7822df2002dba 66-68
+apps/springload/src-tauri/src/commands/mod.rs
+  s_bfd54e4da0576d::t_044dbb643310ec 9
+apps/springload/src-tauri/tests/signal_test.rs
+  s_bfd54e4da0576d::t_debec2ccfb20af 1-294
+apps/springload/src/flow/steps/Step3.tsx
+  s_bfd54e4da0576d::t_676c9cf0d2a094 1-7,10-13,15-18,22-119
+crates/springload-core/src/storage/mod.rs
+  s_bfd54e4da0576d::t_6de3e8e011fc8a 4
+apps/springload/src/flow/steps/Step3.test.tsx
+  s_bfd54e4da0576d::t_2c8d9cc041ab1c 1-145
+crates/springload-core/src/signal.rs
+  s_bfd54e4da0576d::t_3175da61e5a864 161-164,168
+  s_bfd54e4da0576d::t_58fb9c20a5fcbb 1-160,165-167,169-215
+  s_bfd54e4da0576d::t_2bf45e369f5220 293-294,296-299
+  s_bfd54e4da0576d::t_92f7d92bc1605f 216-292,295,300-319
+apps/springload/src-tauri/src/commands/signal.rs
+  s_bfd54e4da0576d::t_abeedaa837bbe8 1-93
+crates/springload-core/tests/fixtures/eastmoney_minute_600000_klt1.json
+  s_bfd54e4da0576d::t_30a9051421f621 1
+crates/springload-core/tests/fixtures/eastmoney_minute_600000_klt5.json
+  s_bfd54e4da0576d::t_30a9051421f621 1
+crates/springload-core/src/minute.rs
+  s_bfd54e4da0576d::t_7fedd76e35273a 178-198
+  s_bfd54e4da0576d::t_58fb9c20a5fcbb 1-177
+  s_bfd54e4da0576d::t_6e3587fbf74fc2 199-236,238-241
+  s_bfd54e4da0576d::t_8991d851b4f343 237
+crates/springload-core/src/storage/signal.rs
+  s_bfd54e4da0576d::t_26652053028c00 98-115
+crates/springload-core/src/lib.rs
+  s_bfd54e4da0576d::t_6907a3ef6ca5d3 16,18
+apps/springload/src/api/signal.ts
+  s_bfd54e4da0576d::t_c85b2af742737a 1-27
+crates/springload-core/src/storage/bar_minute.rs
+  s_bfd54e4da0576d::t_58fb9c20a5fcbb 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "00d3c3883156ed8077172a2388707242ff4ceb9a",
+  "prompts": {},
+  "sessions": {
+    "s_bfd54e4da0576d": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_9c18a22d-bef9-4ba4-905f-3e475a690baa",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
