@@ -5,6 +5,7 @@ pub mod ai;
 pub mod app;
 pub mod market;
 pub mod plan;
+pub mod positions;
 pub mod screen;
 pub mod settings;
 pub mod signal;

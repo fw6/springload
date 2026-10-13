@@ -72,6 +72,9 @@ pub fn run() {
             commands::plan::plan_list,
             commands::plan::plan_confirm_executed,
             commands::plan::plan_set_status,
+            commands::positions::positions_get,
+            commands::positions::positions_refresh_quotes,
+            commands::positions::position_exit,
         ])
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用")

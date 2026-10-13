@@ -103,6 +103,19 @@ pub fn delete_for_code(conn: &Connection, code: &str) -> Result<usize> {
     Ok(n)
 }
 
+/// 交易日历：库里所有股票出现过的交易日，按日期升序。
+///
+/// 停牌日的记录本来就是缺的，所以这份日历是「市场开过市的日子」的近似。
+pub fn trading_days(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT DISTINCT date FROM bar ORDER BY date")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 fn collect(rows: rusqlite::MappedRows<'_, impl FnMut(&Row<'_>) -> rusqlite::Result<BarRow>>) -> Result<Vec<BarRow>> {
     let mut out = Vec::new();
     for row in rows {

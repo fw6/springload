@@ -6,6 +6,7 @@
 
 pub mod adjustment;
 pub mod ai;
+pub mod alerts;
 pub mod backfill;
 pub mod config;
 pub mod error;
