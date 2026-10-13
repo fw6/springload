@@ -1,0 +1,54 @@
+apps/springload/src-tauri/src/commands/plan.rs
+  s_bfd54e4da0576d::t_5df8d87238e3c5 1-59
+apps/springload/src/flow/steps/Step4.tsx
+  s_bfd54e4da0576d::t_b3f2f8e6e6db95 230-237,241-243
+  s_bfd54e4da0576d::t_261a62be783eb5 2,4
+  s_bfd54e4da0576d::t_76d45784b792d1 38,41-42,45-65
+apps/springload/src/routes/PlanPage.test.tsx
+  s_bfd54e4da0576d::t_205445cc45e950 1-231
+apps/springload/src/flow/steps/Step3.tsx
+  s_bfd54e4da0576d::t_5dbff8d8aa3a76 96
+apps/springload/package.json
+  s_bfd54e4da0576d::t_0ee832be0d11bc 16-17
+docs/agents/architecture.md
+  s_bfd54e4da0576d::t_c02317eeae3f27 349-350
+pnpm-lock.yaml
+  s_bfd54e4da0576d::t_9cc4a6e0b6f56d 174-179,830-835,844-846,897-900,917-920,932-937,968-970,997-999,1009-1011,1025-1034,1060-1062,1099-1101,1108-1110,1130-1132,1166-1168,1173-1176,1206-1209,1213-1216,1220-1222,1271-1273,1837-1841,1850-1852,1916-1918,1935-1946,1953-1960,1985-1989,2033-2038,2043-2044,2056-2065,2100-2110,2135-2136,2143-2145,2164-2168,2194-2196,2199-2201,2250-2252,2255-2257,2260-2264,2302-2305
+pnpm-workspace.yaml
+  s_bfd54e4da0576d::t_d5dd8d27026437 14,17
+crates/springload-core/src/storage/trade_plan.rs
+  s_bfd54e4da0576d::t_be99aeac74c5c8 5,8-9
+apps/springload/src/routes/PlanPage.tsx
+  s_bfd54e4da0576d::t_16fc51cec81e4e 1-72,74-256,262-265,268-349
+apps/springload/src/api/plan.ts
+  s_bfd54e4da0576d::t_0ed88d44262f33 1-110
+apps/springload/src-tauri/src/app.rs
+  s_bfd54e4da0576d::t_88572967925f30 69-74
+crates/springload-core/src/plan.rs
+  s_bfd54e4da0576d::t_aab4616ef65d5c 1-6,8-207
+  s_bfd54e4da0576d::t_d29d7d98df3bdd 7
+crates/springload-core/src/lib.rs
+  s_bfd54e4da0576d::t_a804e7ce2a95d0 17
+apps/springload/src-tauri/src/commands/mod.rs
+  s_bfd54e4da0576d::t_fdaf37300b9ff0 7
+apps/springload/src-tauri/tests/plan_test.rs
+  s_bfd54e4da0576d::t_48c64491ff1a58 1-316
+crates/springload-core/src/storage/trade_log.rs
+  s_bfd54e4da0576d::t_aeb47ddf20ebee 5,8-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "7ebfc78b480c5ed434425040d387828bd0fb02eb",
+  "prompts": {},
+  "sessions": {
+    "s_bfd54e4da0576d": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_9c18a22d-bef9-4ba4-905f-3e475a690baa",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
