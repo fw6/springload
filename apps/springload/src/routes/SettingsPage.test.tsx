@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) }));
 
 import SettingsPage from "./SettingsPage";
 import { BeginnerModeProvider } from "../copy/BeginnerModeContext";
@@ -10,8 +11,17 @@ import { appInfoStub, glossaryStub, mockedInvoke, renderAt, settingsStub, stubIn
 
 const confirmed = { ...settingsStub, firstRunConfirmed: true };
 
+/** `sync_status` 命令的桩数据，设置页内嵌的 SyncPanel 会读它。 */
+const syncStatusStub = {
+  running: false,
+  done: 0,
+  total: 0,
+  lastSyncAt: null,
+  message: "尚未同步",
+};
+
 function renderSettings(overrides: Record<string, unknown> = {}) {
-  stubInvoke({ settings_get: confirmed, ...overrides });
+  stubInvoke({ settings_get: confirmed, sync_status: syncStatusStub, ...overrides });
   return renderAt(
     "/settings",
     <BeginnerModeProvider>
@@ -21,11 +31,11 @@ function renderSettings(overrides: Record<string, unknown> = {}) {
 }
 
 describe("设置页", () => {
-  it("显示数据源、最近同步时间与筛选参数默认值", async () => {
+  it("显示数据源、同步面板与筛选参数默认值", async () => {
     renderSettings();
 
     expect(await screen.findByDisplayValue("东方财富 · 前复权")).toBeTruthy();
-    expect(screen.getByDisplayValue("尚未同步")).toBeTruthy();
+    expect(await screen.findByText(/最近同步：尚未同步/)).toBeTruthy();
 
     expect((screen.getByLabelText("单笔风险比例（%）") as HTMLInputElement).value).toBe("0.5");
     expect((screen.getByLabelText("止损距离阈值（%）") as HTMLInputElement).value).toBe("5");
@@ -91,7 +101,7 @@ describe("设置页", () => {
       if (command === "import_bars_csv") {
         throw new Error("CSV 表头缺少必需列「amount」");
       }
-      return { settings_get: confirmed, app_info: appInfoStub }[command];
+      return { settings_get: confirmed, app_info: appInfoStub, sync_status: syncStatusStub }[command];
     }) as typeof invoke);
 
     renderAt(

@@ -18,7 +18,7 @@ vi.mock("@tauri-apps/api/event", () => ({
   }),
 }));
 
-import SyncPanel from "./SyncPanel";
+import { SyncPanel } from "./SyncPanel";
 import { mockedInvoke, stubInvoke } from "../test-utils";
 
 const baseStatus = {

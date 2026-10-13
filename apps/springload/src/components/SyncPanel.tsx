@@ -31,7 +31,7 @@ function percent(status: SyncStatus): number {
  *
  * 进度来自 `sync://progress` 事件，初始状态与最近同步时间来自 `sync_status` 命令。
  */
-export default function SyncPanel() {
+export function SyncPanel() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [report, setReport] = useState<SyncReport | null>(null);
   const [error, setError] = useState<string | null>(null);

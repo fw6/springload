@@ -8,6 +8,7 @@ import {
   type Settings,
   type SettingsPatch,
 } from "../api/settings";
+import { SyncPanel } from "../components/SyncPanel";
 import { RiskNotesDialog, useBeginnerMode } from "../copy/BeginnerModeContext";
 
 function message(error: unknown): string {
@@ -37,14 +38,13 @@ function pagePatch(settings: Settings): SettingsPatch {
   };
 }
 
-/** 设置页：风险提示入口、筛选参数、数据源与同步时间、CSV 导入、小白模式开关。 */
+/** 设置页：风险提示入口、筛选参数、数据源与同步面板、CSV 导入、小白模式开关。 */
 export default function SettingsPage() {
   const { beginnerMode, setBeginnerMode } = useBeginnerMode();
 
   const [saved, setSaved] = useState<Settings | null>(null);
   const [draft, setDraft] = useState<Settings | null>(null);
   const [dataSource, setDataSource] = useState<string | null>(null);
-  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -65,11 +65,9 @@ export default function SettingsPage() {
     getAppInfo()
       .then((info) => {
         setDataSource(info.dataSource);
-        setLastSyncAt(info.lastSyncAt);
       })
       .catch(() => {
         setDataSource(null);
-        setLastSyncAt(null);
       });
   }, []);
 
@@ -250,16 +248,12 @@ export default function SettingsPage() {
             />
           </div>
 
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="data-source">数据源</label>
-              <input id="data-source" value={dataSource ?? "未取到"} readOnly />
-            </div>
-            <div className="field">
-              <label htmlFor="last-sync">最近一次同步时间</label>
-              <input id="last-sync" value={lastSyncAt ?? "尚未同步"} readOnly />
-            </div>
+          <div className="field">
+            <label htmlFor="data-source">数据源</label>
+            <input id="data-source" value={dataSource ?? "未取到"} readOnly />
           </div>
+
+          <SyncPanel />
 
           <div className="field">
             <label htmlFor="csv-path">CSV 文件路径</label>
@@ -318,6 +312,8 @@ export default function SettingsPage() {
       {showRisk ? (
         <RiskNotesDialog confirmLabel="关闭" onConfirm={confirmRisk} />
       ) : null}
+
+      {/* 复权维护：#13 在此处插入 <AdjustmentPanel /> */}
     </div>
   );
 }
