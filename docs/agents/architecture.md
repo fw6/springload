@@ -100,7 +100,7 @@ crates/springload-core/     # 领域核心
 | `commands/journal.rs` | #21 |
 | `commands/settings.rs` | #22 |
 
-`lib.rs` 里的 `invoke_handler` 按上面的顺序排列，每个 ticket 只在自己的那一行块里加自己的命令，合并时冲突只出现在相邻行。
+`app.rs` 里的 `invoke_handler` 按上面的顺序排列，每个 ticket 只在自己的那一行块里加自己的命令，合并时冲突只出现在相邻行。
 
 ## 4. 核心类型（冻结）
 
@@ -387,6 +387,9 @@ pub struct Settings {
 | `components/TermHint.tsx`、`components/Tooltip.tsx`、`components/Modal.tsx`、`components/ConfidencePill.tsx`、`components/Flag.tsx`、`components/StepGate.tsx` | #11 |
 | `components/AiCard.tsx` | #15 |
 | `copy/GlossaryContext.tsx`（启动时取一次 `glossary` 命令，放 context） | #11 |
+| `copy/riskNotes.ts`（需求文档第 8 章风险提示文案） | #11 |
+| `api/types.ts`（跨 ticket 的 DTO 类型：`StepIndex`、`ToolId`、`Period`、`StepUnlock`、`WatchlistRow`、`SupportZoneView`、`SignalStatus`、`SizingInput` 等） | #11 |
+| `test-utils.tsx`（vitest 的 `invoke` 桩与 memory router 渲染辅助） | #11 |
 | `flow/useFlow.ts`、`flow/FlowPage.tsx`、`flow/Steps.tsx` | #11 |
 | `flow/steps/Step1.tsx` | #14 |
 | `flow/steps/Step2.tsx` | #16 |
@@ -397,6 +400,8 @@ pub struct Settings {
 | `routes/PositionsPage.tsx` | #20 |
 | `routes/JournalPage.tsx` | #21 |
 | `routes/SettingsPage.tsx` | #22 |
+
+`Step1.tsx`~`Step4.tsx`、`KLineChart.tsx`、`PlanPage.tsx`~`JournalPage.tsx` 在 #11 里已经建成占位（标注了归属 ticket），由各自的 ticket 重写整个文件。`SettingsPage.tsx` 在 #11 里已经建成可用的配置读写界面，由 #22 在其上补首次启动确认、筛选参数、CSV 导入与小白模式开关。
 
 `App.tsx` 里的路由表由 #11 一次写好，指向上面五个页面文件；后续 ticket 只改自己那个页面文件，不动 `App.tsx`。
 
