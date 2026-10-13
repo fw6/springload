@@ -1,0 +1,44 @@
+apps/springload/src-tauri/src/app.rs
+  s_bfd54e4da0576d::t_aa8cb436e73ef6 78-81
+apps/springload/src-tauri/src/commands/journal.rs
+  s_bfd54e4da0576d::t_eaa78c778920be 6,8-9,12-14,37,42,45-54
+  s_bfd54e4da0576d::t_5284c763796204 1-5,7,10-11,15-36,38-41,43-44,55
+crates/springload-core/src/lib.rs
+  s_bfd54e4da0576d::t_e31aa10aca95e7 17
+  s_bfd54e4da0576d::t_f2c0efde56d147 13
+apps/springload/src-tauri/src/commands/mod.rs
+  s_bfd54e4da0576d::t_c33a694190c82f 6
+apps/springload/src/api/journal.ts
+  s_bfd54e4da0576d::t_4710b693fee1cb 1-62
+apps/springload/src-tauri/tests/journal_test.rs
+  s_bfd54e4da0576d::t_1a0cd12a1f69c4 38
+  s_bfd54e4da0576d::t_d99be30d4b999d 1-37,39-297
+crates/springload-core/src/fees.rs
+  s_bfd54e4da0576d::t_e5600a6240a8f2 121-125
+  s_bfd54e4da0576d::t_b8d381a1c8eb39 1-120,126-127
+apps/springload/src/routes/JournalPage.tsx
+  s_bfd54e4da0576d::t_d046e9ce594f8b 1-11,14-40,42-97,103-111,114-147,149-306,310-361
+  s_bfd54e4da0576d::t_6a0e2cd7c2e2a5 12-13
+apps/springload/src/routes/JournalPage.test.tsx
+  s_bfd54e4da0576d::t_99a5baf73490c4 2
+  s_bfd54e4da0576d::t_a75a4787b4f91d 119
+  s_bfd54e4da0576d::t_625b6d06400232 1,3-118,120-210
+crates/springload-core/src/journal.rs
+  s_bfd54e4da0576d::t_f63dbc40615253 1-316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "6496cd6dbec6431d5817c1bf050bff7adbf087e5",
+  "prompts": {},
+  "sessions": {
+    "s_bfd54e4da0576d": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_9c18a22d-bef9-4ba4-905f-3e475a690baa",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
