@@ -1,0 +1,4 @@
+# Tauri 生成的移动工程与 capability schema
+src-tauri/gen
+# tauri android/ios 构建脚本需要的 CLI 入口（软链，生成物）
+src-tauri/tauri
