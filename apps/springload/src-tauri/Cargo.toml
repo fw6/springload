@@ -20,6 +20,8 @@ tauri-plugin-autostart = "2"
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# `bars_get` 读 `bar_minute` 表（分钟线由 #17 写入）。
+rusqlite = "0.40"
 springload-core = { path = "../../../crates/springload-core" }
 
 [dev-dependencies]
