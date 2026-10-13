@@ -33,6 +33,7 @@ pub fn run() {
             sync_autostart(app.handle());
             commands::market::start_scheduler(app.handle().clone());
             commands::screen::start_scheduler(app.handle().clone());
+            commands::signal::start_scheduler(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -62,6 +63,9 @@ pub fn run() {
             commands::settings::import_bars_csv,
             commands::settings::confirm_first_run,
             commands::sizing::plan_calc,
+            commands::signal::signal_status,
+            commands::signal::signal_evaluate,
+            commands::signal::poll_tick,
         ])
         .build(tauri::generate_context!())
         .expect("构建 Tauri 应用")

@@ -1,6 +1,7 @@
 //! SQLite 存储：连接池、迁移与各表的读写。
 
 pub mod bar;
+pub mod bar_minute;
 pub mod bar_sync_state;
 pub mod corporate_action;
 pub mod migrations;

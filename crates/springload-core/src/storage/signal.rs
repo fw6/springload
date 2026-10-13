@@ -95,3 +95,21 @@ pub fn latest_for_code(conn: &Connection, code: &str) -> Result<Option<Signal>> 
         .optional()?;
     Ok(signal)
 }
+
+/// 处于等待触发状态的股票：已标注高置信支撑区、且还没有触发过信号。
+pub fn codes_waiting(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT zone.code FROM support_zone zone
+         WHERE zone.confidence = '高'
+           AND NOT EXISTS (
+             SELECT 1 FROM signal WHERE signal.code = zone.code AND signal.status = 'triggered'
+           )
+         ORDER BY zone.code",
+    )?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
