@@ -1,0 +1,118 @@
+prototype/src/variants/common.tsx
+  s_61b4e79322fd00::t_7dbadf5809a1a2 14-22
+  s_61b4e79322fd00::t_6353f0ad07b212 1
+  s_61b4e79322fd00::t_19c1f1d6660983 33
+  s_61b4e79322fd00::t_c5ff0bc90ed554 182
+  s_61b4e79322fd00::t_9550679476085a 2-13,23-32,34-181,183-186
+prototype/.gitignore
+  s_61b4e79322fd00::t_73161e7259b253 3
+  s_61b4e79322fd00::t_9adba2c17f207b 1-2
+prototype/src/variants/types.ts
+  s_61b4e79322fd00::t_7bacf6bca93cdc 1-11
+prototype/src/format.ts
+  s_61b4e79322fd00::t_3811d5d286676c 1-5
+prototype/src/variants/VariantA.tsx
+  s_61b4e79322fd00::t_663ce269ec847f 9
+  s_61b4e79322fd00::t_97aebf056fc5b0 20
+  s_61b4e79322fd00::t_0bf0618eefacca 2-8,11-19,21-171,176-228,230-232,234-536,540-595
+  s_61b4e79322fd00::t_715843c7951999 597-603
+  s_61b4e79322fd00::t_52410cbddcd663 10
+  s_61b4e79322fd00::t_19c93ba7551ead 229,233
+  s_61b4e79322fd00::t_a3cf9310ff3b4a 537-539
+  s_61b4e79322fd00::t_97fd6866bc4cc7 172-175
+  s_61b4e79322fd00::t_52cdd874a90beb 1
+  s_61b4e79322fd00::t_05298a1fe47b67 596
+prototype/src/flow/useFlow.ts
+  s_61b4e79322fd00::t_a1e909a1fca49b 1-23,43-68,71-89,93,96,98-105,109-110,112-114,117-124,137-139,141-174
+  s_61b4e79322fd00::t_7ab43354696354 25,29-33,36-38,40-42,69-70
+  s_61b4e79322fd00::t_e53c1aa3440b57 39
+  s_61b4e79322fd00::t_244969db7e32fc 24,26-28,34-35
+  s_61b4e79322fd00::t_04ff267c9e62b4 90-92,94-95,97
+  s_61b4e79322fd00::t_f79b312c385ae6 125-136,140
+  s_61b4e79322fd00::t_c6ce97650239f0 106-108,111,115-116
+prototype/src/App.tsx
+  s_61b4e79322fd00::t_d7621d885a0c75 1-29
+prototype/package-lock.json
+  s_61b4e79322fd00::t_198d1aec0c838f 1-1906
+prototype/package.json
+  s_61b4e79322fd00::t_7af85291f9e5a5 1-25
+prototype/src/data/fixtures.ts
+  s_61b4e79322fd00::t_a8cee539750409 1-198
+prototype/src/vite-env.d.ts
+  s_61b4e79322fd00::t_fde3e4be4e15b5 1
+prototype/src/data/market.ts
+  s_61b4e79322fd00::t_a687b1eedc1812 1-60,89-91,93-95,97-102,105-194
+  s_61b4e79322fd00::t_285f6ef0896eef 71,74,85-88
+  s_61b4e79322fd00::t_0bf6311473814f 73,75,84
+  s_61b4e79322fd00::t_c01c6210a8936f 76-83
+  s_61b4e79322fd00::t_acafa533add492 103-104
+  s_61b4e79322fd00::t_ba09fd7dfad477 61-70,72,92,96
+prototype/tsconfig.json
+  s_61b4e79322fd00::t_54f41696200717 1-20
+prototype/src/styles.css
+  s_61b4e79322fd00::t_484e6dfa6f8a4e 110-130
+  s_61b4e79322fd00::t_12419754abeb63 1-109,131-882
+prototype/README.md
+  s_61b4e79322fd00::t_7c9bf6c3a52af9 1-52
+prototype/src/variants/VariantB.tsx
+  s_61b4e79322fd00::t_7ef8927d4cce8d 10
+  s_61b4e79322fd00::t_f78a57ad57782a 9
+  s_61b4e79322fd00::t_9db4f4a9a7e93e 1-8,11-653,655-661
+  s_61b4e79322fd00::t_3dc6d73a46d91c 654
+prototype/src/chart/overlays.ts
+  s_61b4e79322fd00::t_db60c6d99d9e6d 1-51
+prototype/index.html
+  s_61b4e79322fd00::t_91c2ae9c520456 1-12
+prototype/vite.config.ts
+  s_61b4e79322fd00::t_d26d24edfabaff 1-9
+prototype/src/variants/VariantC.tsx
+  s_61b4e79322fd00::t_4edb9ef2cc74c1 10
+  s_61b4e79322fd00::t_8e625f31a345ca 9
+  s_61b4e79322fd00::t_61da7953b25593 189-192
+  s_61b4e79322fd00::t_e5649c3e00ee8b 246,250
+  s_61b4e79322fd00::t_38aab0bf2992b5 600
+  s_61b4e79322fd00::t_44cef7d85d7b2d 1-8,11-188,193-245,247-249,251-599,601-607
+prototype/src/data/glossary.ts
+  s_61b4e79322fd00::t_04d8ff71554047 1-135
+prototype/src/main.tsx
+  s_61b4e79322fd00::t_4e9ddcc0e26f88 1-12
+prototype/src/variant.tsx
+  s_61b4e79322fd00::t_6b62b07c8f597f 1-96
+prototype/src/chart/KLineChart.tsx
+  s_61b4e79322fd00::t_f42785f2b7ee88 2
+  s_61b4e79322fd00::t_799919dc78c6fb 182,203-209,212
+  s_61b4e79322fd00::t_6f8f3a1ec6903a 41-49
+  s_61b4e79322fd00::t_a403749d0a8fbd 130-131
+  s_61b4e79322fd00::t_0fcbf5c62914ef 54-55
+  s_61b4e79322fd00::t_a16564ddebdfc2 88
+  s_61b4e79322fd00::t_a8fda27e04e5f7 1,3-40,50-53,56-87,89-129,132-181,183-202,210-211,213-220
+prototype/src/data/stocks.ts
+  s_61b4e79322fd00::t_67fa60a2b30b36 47
+  s_61b4e79322fd00::t_640c0a257c40cb 1,3
+  s_61b4e79322fd00::t_654a508f84fa8d 11
+  s_61b4e79322fd00::t_cc5bc356e9f457 18,23
+  s_61b4e79322fd00::t_231bbd0bac7d57 48-49
+  s_61b4e79322fd00::t_2b9387594ae84a 69
+  s_61b4e79322fd00::t_1eff400282cc7a 95-98
+  s_61b4e79322fd00::t_c6f84525626e79 88-89
+  s_61b4e79322fd00::t_819a06e9100ca2 36
+  s_61b4e79322fd00::t_5422e1c6fdae3d 14-17,19-22,24-25
+  s_61b4e79322fd00::t_c9bf0595838a96 2,4-10,13,26-35,37-46,50-68,70-87,90-94
+  s_61b4e79322fd00::t_277e470d2990cb 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "105134ccd81faecb1cfa4baace956aeca6bbeb0d",
+  "prompts": {},
+  "sessions": {
+    "s_61b4e79322fd00": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_7dac3cd5-cd04-4fe2-b43a-7f74e81bbe31",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
