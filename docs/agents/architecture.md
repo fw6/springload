@@ -435,6 +435,21 @@ export interface Flow {
 
 各步自己的数据（筛选结果、标注列表、信号明细、计算结果）由该步自己的 hook 取，不放进 `useFlow`。需要让别的步骤看到的状态（观察名单、选中股票、周期、信号）通过上面的 setter 写回。
 
+`components/AiCard.tsx`（#15 所有）的对外形状冻结，四步面板与交易日志页都按这个签名渲染，各 ticket 不重复实现解释的取数与缓存：
+
+```tsx
+export interface AiCardProps {
+  /** 解释对象；为 null 时不渲染卡片 */
+  code: string | null
+  /** 1~4 对应主流程四步，'journal' 是交易日志页的复盘总结 */
+  scope: StepIndex | 'journal'
+  /** 值变化时让该步的缓存失效并重新生成（第 2 步在增删或拖动标注后传标注指纹） */
+  invalidateToken?: string
+}
+```
+
+卡片自身负责：调 `explain` / `explain_retry` / `explain_invalidate` 三个命令、加载与失败状态、固定带「AI 生成」标签与免责声明；失败时显示「解释生成失败」与重试按钮，不沿用上一次的解释。
+
 设计令牌取原型变体 B（`prototype/src/styles.css` 的 `.app[data-variant='B']` 一段）：正文 15px、小字 13px、标题 18px、结果数字 24px、行高 44px、面板内边距 20px、圆角 12px、间距 16px、主色 `#2563eb`、图表与面板宽度比 38:62（`--flow-cols: minmax(0, 38fr) minmax(380px, 62fr)`）。
 
 ## 9. 约定
