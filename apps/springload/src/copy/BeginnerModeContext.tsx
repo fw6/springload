@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { confirmFirstRun, getSettings, updateSettings } from "../api/settings";
+import { Modal } from "../components/Modal";
 import { firstRunNotes } from "./riskNotes";
 
 /** 小白模式开关的全局状态。 */
@@ -38,39 +39,32 @@ export function useBeginnerMode(): BeginnerModeValue {
  * 首次启动确认与设置页的重看入口共用这一个弹窗。
  */
 export function RiskNotesDialog({
+  open,
   confirmLabel,
   onConfirm,
   busy = false,
   error = null,
 }: {
+  open: boolean;
   confirmLabel: string;
   onConfirm: () => void;
   busy?: boolean;
   error?: string | null;
 }) {
   return (
-    <div className="modal-backdrop" role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-label="风险提示">
-        <h3>风险提示</h3>
-        <ol
-          style={{
-            margin: "0 0 16px",
-            paddingLeft: 20,
-            lineHeight: 1.75,
-            fontSize: 14,
-            color: "#334155",
-          }}
-        >
-          {firstRunNotes.map((note) => (
-            <li key={note}>{note}</li>
-          ))}
-        </ol>
-        {error !== null ? <p className="hint">确认失败：{error}</p> : null}
-        <button type="button" className="primary modal-close" onClick={onConfirm} disabled={busy}>
-          {busy ? "保存中…" : confirmLabel}
-        </button>
-      </div>
-    </div>
+    <Modal
+      open={open}
+      title="风险提示"
+      onClose={onConfirm}
+      confirm={{ label: busy ? "保存中…" : confirmLabel, onClick: onConfirm, disabled: busy }}
+    >
+      <ol className="list-decimal space-y-2 pl-5">
+        {firstRunNotes.map((note) => (
+          <li key={note}>{note}</li>
+        ))}
+      </ol>
+      {error !== null ? <p className="text-alert">确认失败：{error}</p> : null}
+    </Modal>
   );
 }
 
@@ -99,13 +93,15 @@ function FirstRunGate() {
     setError(null);
     confirmFirstRun()
       .then(() => setOpen(false))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .catch((cause: unknown) =>
+        setError(cause instanceof Error ? cause.message : String(cause)),
+      )
       .finally(() => setBusy(false));
   };
 
-  if (!open) return null;
   return (
     <RiskNotesDialog
+      open={open}
       confirmLabel="我已阅读并理解"
       onConfirm={confirm}
       busy={busy}
@@ -149,9 +145,9 @@ export function BeginnerModeProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <BeginnerModeContext.Provider value={value}>
+    <BeginnerModeContext value={value}>
       {children}
       <FirstRunGate />
-    </BeginnerModeContext.Provider>
+    </BeginnerModeContext>
   );
 }

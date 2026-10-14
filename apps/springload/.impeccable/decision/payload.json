@@ -1,0 +1,133 @@
+{
+  "title": "选择视觉世界",
+  "question": "这次掷出的是「报刊行情版」。留下它、选一个备选，或者重掷。",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "报刊行情版",
+      "kicker": "THE ROLL",
+      "lineage": "证券报的行情版与铅字排版的报纸版面",
+      "thesis": "每天出一版的行情纸：报头压顶，头条就是今天该做的事，下面的行情表可以一路扫到收盘。",
+      "palette": ["#ece9df", "#16161a", "#b8232a", "#c9c5b8", "#1c6b4a"],
+      "materials": ["铅字压痕", "新闻纸", "套红", "栏线"],
+      "viewport": "报头横贯整宽，下面按栏切版：左边是加框的行情主图（K 线带支撑区标注），右边是四则稿件的栏位，当前一步整栏套红加框。",
+      "risk": "报纸的样子容易被读成复古装饰；如果版面密度和字号层级没做到位，操盘时反而更难扫读。",
+      "raised": [
+        {
+          "from": "植物学图版",
+          "raise": "四个步骤的结果落在同一条数值基线上，可以直接上下比较，不必来回翻。"
+        },
+        {
+          "from": "Metro 磁贴",
+          "raise": "每一步的入口本身就承载当前状态与关键数字，而不是导航里的一行字。"
+        },
+        {
+          "from": "磁带 J 卡",
+          "raise": "数值一律靠右排齐，一块版面上最多两栏，眼睛只需沿一条边往下走。"
+        },
+        {
+          "from": "池田亮司数据场",
+          "raise": "当前选中的那一行整块反白，不用边框也不用底色。"
+        }
+      ]
+    },
+    {
+      "id": "model-pick",
+      "label": "证券交割单",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "证券营业部的日终交割凭单，针式打印机连续穿孔纸",
+      "thesis": "一张逐栏核对的凭单：每一笔、每一个数字都有它固定的栏位，签完字才算数。",
+      "palette": ["#f2efe6", "#1a1a18", "#c8362b", "#2b4a8b"],
+      "materials": ["连续穿孔纸", "针式点阵", "红黑双色套打"],
+      "viewport": "一整页从顶部连续下来的凭单，四个步骤是四段栏位区，段与段之间是打印机的走纸孔。",
+      "risk": "针式点阵的字面在高分屏上偏细，读久了累；这也是这个品类里最多人走的那条路。"
+    },
+    {
+      "id": "challenger-wayfinding",
+      "label": "机场指示系统",
+      "verdict": "competitive",
+      "lineage": "国际机场的悬挂式指示带与航班出发牌",
+      "thesis": "每个路口只告诉你下一个决定，走过的路自己再签一次。",
+      "palette": ["#f7c600", "#111111", "#ffffff"],
+      "materials": ["悬挂指示带", "黑白图形符号", "翻牌更新"],
+      "viewport": "顶部一条悬挂指示带显示「下一步」，下面一整块出发牌式的行情表，代码用登机口号的字号。",
+      "case": "四步锁定与「按顺序走到目的地」完全同构，出发牌证明这套系统也扛得住密集数字；丢在受众识别，这是给所有旅客的系统，不是给这个人的。",
+      "risk": "指示牌天生只讲「往哪走」，图上的支撑区标注和仓位公式在这套语法里没有位置。",
+      "hero": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding.webp"
+    },
+    {
+      "id": "challenger-crouwel",
+      "label": "构造网格样本",
+      "verdict": "competitive",
+      "lineage": "Wim Crouwel 的网格字体样本",
+      "thesis": "版面本身就是一张画着格子的纸，每个数字都落在自己的格子里。",
+      "palette": ["#ffffff", "#d8dce6", "#e8442c", "#101114"],
+      "materials": ["可见构造网格", "细线", "单块强调面"],
+      "viewport": "整页铺着浅蓝构造网格，四个步骤是四块格子区，支撑区直接落在格子上，「显示网格」是一个真的开关。",
+      "case": "守住产品清晰度这条轴：「每个数字都落在格子上」正是可对账的视觉证明；丢在受众识别，没人认识这位设计师。",
+      "risk": "格子铺满全屏会显得冷，长时间盯着看容易疲劳。",
+      "hero": "https://impeccable.style/worlds/cards/crouwel-grid-specimen-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/crouwel-grid-specimen.webp"
+    },
+    {
+      "id": "challenger-botanical",
+      "label": "植物学图版",
+      "verdict": "declined",
+      "lineage": "按季节排的植物学图版册",
+      "thesis": "同一株植物的五个阶段，同比例、同底线并排。",
+      "palette": ["#f3ead9", "#8a6b4f", "#3f6b3a", "#b02a20"],
+      "materials": ["图版纸", "棕褐细线", "雕版"],
+      "case": "合不上：中国散户不认识植物图谱，也看不出它和下单有什么关系。",
+      "kept": "同一比例、同一条基线：四步的结果用同一把尺子画出来，可以直接上下比较。",
+      "hero": "https://impeccable.style/worlds/cards/editorial-sequence-montage-botanical-folio-season-hero.webp"
+    },
+    {
+      "id": "challenger-metro",
+      "label": "磁贴版面",
+      "verdict": "declined",
+      "lineage": "Metro 风格的纯色磁贴界面",
+      "thesis": "屏幕上只有字和色块，磁贴就是唯一的门。",
+      "palette": ["#000000", "#00b7c3", "#e5007d", "#b6e500"],
+      "materials": ["纯色平贴", "巨型小写字", "翻面"],
+      "case": "合不上：纯黑底加巨型字，和「每个数字都要能对账」正好相反。",
+      "kept": "入口即内容：每一步的入口自己承载当前状态与关键数字，而不是导航里的一行字。",
+      "hero": "https://impeccable.style/worlds/cards/digital-design-canon-metro-typographic-tiles-hero.webp"
+    },
+    {
+      "id": "challenger-cassette",
+      "label": "磁带内页卡",
+      "verdict": "declined",
+      "lineage": "磁带盒里那张手写曲目内页",
+      "thesis": "A 面 B 面各占一半，每条曲子后面写着时长。",
+      "palette": ["#fbfaf5", "#274a9c", "#9a9a96", "#d21f26"],
+      "materials": ["横格内页纸", "圆珠笔", "铅笔"],
+      "case": "合不上：手写字加上物理翻面，对盘中高频操作是负担。",
+      "kept": "两面硬分割加右边缘排齐的时长：一次会话切成两半，数值全部贴右边缘。",
+      "hero": "https://impeccable.style/worlds/cards/vernacular-ephemera-cassette-j-card-hero.webp"
+    },
+    {
+      "id": "challenger-ikeda",
+      "label": "黑白数据场",
+      "verdict": "declined",
+      "lineage": "池田亮司的黑白数据图形",
+      "thesis": "整屏只有纯黑与纯白，数字密排成条码。",
+      "palette": ["#000000", "#ffffff"],
+      "materials": ["条码柱阵", "等宽数字", "整屏反色"],
+      "case": "合不上：这套系统只有黑白两色，而涨跌必须用红绿区分，第一眼就冲突。",
+      "kept": "整块反色：用一整块反白标出「此刻在看哪一行」，不用边框也不用底色。",
+      "hero": "https://impeccable.style/worlds/cards/ikeda-datamatics-hero.webp"
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "canon": true,
+  "canonCard": {
+    "label": "这个品类的标准做法",
+    "thesis": "同行都这么做，做到最好也就是这个样子。",
+    "palette": ["#ffffff", "#111827", "#2563eb"],
+    "materials": ["干净的网格", "侧边栏导航", "圆角卡片"],
+    "viewport": "左边一条侧边导航，右边是卡片网格，顶上放着几个大号数字的指标块。",
+    "risk": "按设计就与同行的产品分不出来。"
+  },
+  "steer": true
+}

@@ -152,8 +152,17 @@ const V2_WATCHLIST_MANUAL: &str = r#"
 ALTER TABLE watchlist_item ADD COLUMN manual INTEGER NOT NULL DEFAULT 0;
 "#;
 
+/// 序号 3：日线按日期再建一条索引。
+///
+/// `bar` 的主键是 `(code, date)`，取「库里有行情的那些日子」时用不上它：只能
+/// 扫完整条 `(code, date)` 索引再建临时表去重。全市场一百多万行下这一条查询要
+/// 一秒多，而持仓页每次读持仓都要算一遍交易日历，点开这一页就会卡住一秒。
+const V3_BAR_DATE_INDEX: &str = r#"
+CREATE INDEX idx_bar_date ON bar(date);
+"#;
+
 /// 按序号排列的迁移列表。新增迁移只往后追加，不改动已发布的条目。
-pub const MIGRATIONS: &[&str] = &[V1_INITIAL_SCHEMA, V2_WATCHLIST_MANUAL];
+pub const MIGRATIONS: &[&str] = &[V1_INITIAL_SCHEMA, V2_WATCHLIST_MANUAL, V3_BAR_DATE_INDEX];
 
 /// 从当前版本跑到最新版本。已应用的迁移会跳过。
 pub fn run(conn: &mut Connection) -> Result<()> {

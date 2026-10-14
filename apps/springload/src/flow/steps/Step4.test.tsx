@@ -90,8 +90,8 @@ describe("第 4 步：仓位计算", () => {
     const { container } = renderStep4();
 
     expect(await screen.findByText("可买股数")).toBeTruthy();
-    const grid = container.querySelector(".result-grid")!;
-    const cells = Array.from(grid.querySelectorAll(".result-cell")).map((cell) => ({
+    const grid = container.querySelector('[data-slot="result-grid"]')!;
+    const cells = Array.from(grid.querySelectorAll('[data-slot="result-cell"]')).map((cell) => ({
       label: cell.querySelector("dt")!.textContent ?? "",
       value: cell.querySelector("dd")!.textContent ?? "",
     }));
@@ -109,7 +109,7 @@ describe("第 4 步：仓位计算", () => {
     const { container } = renderStep4();
     await screen.findByText("可买股数");
 
-    const formula = container.querySelector(".formula")!.textContent ?? "";
+    const formula = container.querySelector('[data-slot="formula"]')!.textContent ?? "";
     expect(formula).toContain("每股风险 = 20.00 − 19.50 = 0.50");
     expect(formula).toContain("最大可亏金额 = 100000.00 × 0.50% = 500.00");
     expect(formula).toContain("可买股数 = 500.00 ÷ 0.50 后向下取整到 100 股 = 1000 股");

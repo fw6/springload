@@ -64,8 +64,9 @@ describe("设置页", () => {
   it("关闭小白模式立即写回配置", async () => {
     renderSettings({ settings_update: { ...confirmed, beginnerMode: false } });
 
-    const select = await screen.findByLabelText("小白模式（术语弹窗解释）");
-    fireEvent.change(select, { target: { value: "off" } });
+    const toggle = await screen.findByLabelText("小白模式（术语弹窗解释）");
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle);
 
     await waitFor(() => {
       expect(mockedInvoke).toHaveBeenCalledWith(
@@ -78,16 +79,13 @@ describe("设置页", () => {
   it("费用模型默认关闭，开启并改佣金费率后一起写回", async () => {
     renderSettings();
 
-    expect((await screen.findByLabelText("费用模型（交易日志逐笔扣减）") as HTMLSelectElement).value).toBe(
-      "off",
-    );
+    const feeToggle = await screen.findByLabelText("费用模型（交易日志逐笔扣减）");
+    expect(feeToggle.getAttribute("aria-checked")).toBe("false");
     expect((screen.getByLabelText("佣金费率（%，含单笔最低 5 元）") as HTMLInputElement).value).toBe(
       "0.025",
     );
 
-    fireEvent.change(screen.getByLabelText("费用模型（交易日志逐笔扣减）"), {
-      target: { value: "on" },
-    });
+    fireEvent.click(feeToggle);
     fireEvent.change(screen.getByLabelText("佣金费率（%，含单笔最低 5 元）"), {
       target: { value: "0.03" },
     });

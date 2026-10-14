@@ -2,7 +2,9 @@
 
 本文件是各 ticket 并行实现时的接口契约。凡是本文件冻结的名字、签名、表结构、文件归属，实现时必须照做；跨 ticket 的调用点只依赖本文件，不依赖对方当前的实现进度。
 
-规格是 [issue #10](https://github.com/fw6/springload/issues/10)，ticket 是 #11~#22。调研记录在 `docs/research/`，原型在 `prototype/`（选定变体 B），需求底本在 `docs/需求规格说明书.md`。
+十二张 ticket 都已并进 master，所以各节里带 `#` 编号的「所有者」是当时的分工记录，不再约束改动；仍然生效的是各节冻结的名字、签名与表结构。
+
+规格是 [issue #10](https://github.com/fw6/springload/issues/10)，ticket 是 #11~#22。调研记录在 `docs/research/`，需求底本在 `docs/需求规格说明书.md`。
 
 ## 1. 仓库骨架
 
@@ -15,6 +17,7 @@ pnpm-workspace.yaml         # packages: apps/*, crates/springload-core；cargo.e
 .npmrc                      # registry=https://registry.npmmirror.com
 .cargo/config.toml          # [registries.crates-io] protocol = "sparse" + pnpm 维护的 include 块
 .gitignore
+.github/workflows/ci.yml    # PR 与 push 到 master 时跑 tsc + vitest + cargo test
 AGENTS.md
 GLOSSARY.md
 docs/agents/architecture.md # 本文件
@@ -24,12 +27,11 @@ docs/agents/domain.md
 docs/research/
 docs/adr/
 docs/需求规格说明书.md
-prototype/                  # 页面原型（变体 B），只作参考，不参与构建
 apps/springload/            # 前端 + Tauri 壳
 crates/springload-core/     # 领域核心
 ```
 
-`prototype/` 有独立的 `package-lock.json`，不加入 pnpm workspace；根 `Cargo.toml` 的 `exclude` 要把 `prototype` 排除，避免 pnpm 扫描时被它的依赖卡住。
+仓库根 `Cargo.toml` 的 `exclude` 挡掉 `.scratch` 这类不参与构建的中间结果目录：pnpm install 会扫全树并对每个 `Cargo.toml` 跑 `cargo metadata`，不排除会被里面第三方的 manifest 卡住整次安装。
 
 ## 2. 命名与标识符
 
@@ -373,7 +375,7 @@ pub struct Settings {
 
 | 文件 | 所有者 |
 | --- | --- |
-| `main.tsx`、`App.tsx`、`styles.css`、`test-setup.ts` | #11 |
+| `main.tsx`、`App.tsx`、`index.css`、`test-setup.ts` | #11 |
 | `api/invoke.ts`（`invoke` 的统一封装与错误转换） | #11 |
 | `api/app.ts`、`api/settings.ts` | #11（`settings.ts` 的界面部分由 #22 用） |
 | `api/market.ts` | #12 |
@@ -406,10 +408,6 @@ pub struct Settings {
 | `routes/PositionsPage.tsx` | #20 |
 | `routes/JournalPage.tsx` | #21 |
 | `routes/SettingsPage.tsx` | #22 |
-
-`Step1.tsx`~`Step4.tsx`、`KLineChart.tsx`、`PlanPage.tsx`~`JournalPage.tsx` 在 #11 里已经建成占位（标注了归属 ticket），由各自的 ticket 重写整个文件。`SettingsPage.tsx` 在 #11 里已经建成可用的配置读写界面，由 #22 在其上补首次启动确认、筛选参数、CSV 导入与小白模式开关。
-
-`App.tsx` 里的路由表由 #11 一次写好，指向上面五个页面文件；后续 ticket 只改自己那个页面文件，不动 `App.tsx`。
 
 `useFlow.ts` 由 #11 一次写好并冻结对外形状：
 
@@ -457,7 +455,7 @@ export interface AiCardProps {
 
 卡片自身负责：调 `explain` / `explain_retry` / `explain_invalidate` 三个命令、加载与失败状态、固定带「AI 生成」标签与免责声明；失败时显示「解释生成失败」与重试按钮，不沿用上一次的解释。
 
-设计令牌取原型变体 B（`prototype/src/styles.css` 的 `.app[data-variant='B']` 一段）：正文 15px、小字 13px、标题 18px、结果数字 24px、行高 44px、面板内边距 20px、圆角 12px、间距 16px、主色 `#2563eb`、图表与面板宽度比 38:62（`--flow-cols: minmax(0, 38fr) minmax(380px, 62fr)`）。
+界面用的令牌、字号层级、颜色、版面与组件规则见 `apps/springload/DESIGN.md`。令牌写在 `apps/springload/src/index.css` 的 `@theme` 里，设计系统组件在 `apps/springload/src/components/ui`。
 
 ## 9. 约定
 

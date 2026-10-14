@@ -4,6 +4,10 @@ import { supportRefs, type ZoneRefs } from "../../api/zone";
 import type { SupportZoneView } from "../../api/types";
 import { AiCard } from "../../components/AiCard";
 import { ConfidencePill } from "../../components/ConfidencePill";
+import { DataTable, Td, Th, Tr } from "../../components/DataTable";
+import { Alert, AlertContent, AlertDescription, AlertIcon } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
+import { Stamp, type StampStatus } from "../../components/ui/stamp";
 import { getZones, loadZones, removeZone, subscribeZones } from "../../chart/zoneStore";
 import type { StepProps } from "../useFlow";
 
@@ -18,9 +22,24 @@ function zoneLabel(zone: SupportZoneView): string {
   return "支撑区";
 }
 
+function zoneStatus(zone: SupportZoneView): StampStatus {
+  if (zone.kind === "gap") return "warning";
+  if (zone.kind === "hline") return "neutral";
+  return "info";
+}
+
+/** 小标题：栏线下面一行加粗的宋体。 */
+function SectionHead({ children }: { children: string }) {
+  return (
+    <h3 className="border-b border-rule pb-1 font-display text-body font-bold text-ink">
+      {children}
+    </h3>
+  );
+}
+
 /**
- * 第 2 步面板：列出每条标注的下沿、上沿与置信度、三个参考价各自的落框数，
- * 接上 AI 解释卡片，并在没有高置信支撑区时挡住「进入第 3 步」。
+ * 第 2 版：列出每条标注的下沿、上沿与置信度、三个参考价各自的落框数，
+ * 接上 AI 解释，并在没有高置信支撑区时挡住「进入第 3 步」。
  */
 export default function Step2({ flow }: StepProps) {
   const { selected, avwapStartDate } = flow;
@@ -77,116 +96,123 @@ export default function Step2({ flow }: StepProps) {
 
   return (
     <>
-      <p className="hint">
-        在左边图上用「支撑区」工具拖出矩形，用「水平线」放一条线，用「AVWAP 起点」指定起点。
+      <p className="text-body leading-relaxed text-ink-soft">
+        在左图版上用「支撑区」工具拖出矩形，用「水平线」放一条线，用「AVWAP 起点」指定起点。
         拖动矩形会实时重算置信度。
       </p>
 
-      <h3 className="block-title">已标注</h3>
+      <SectionHead>已标注</SectionHead>
       {zones.length === 0 ? (
-        <p className="hint">还没有标注。点上面的「支撑区」在图上拖一个框出来。</p>
+        <p className="text-note text-ink-soft">
+          还没有标注。点上面的「支撑区」在图上拖一个框出来。
+        </p>
       ) : (
-        <table className="grid">
+        <DataTable>
           <thead>
             <tr>
-              <th className="left">标注</th>
-              <th>下沿</th>
-              <th>上沿</th>
-              <th className="left">置信度</th>
-              <th />
+              <Th>标注</Th>
+              <Th align="right">下沿</Th>
+              <Th align="right">上沿</Th>
+              <Th>置信度</Th>
+              <Th />
             </tr>
           </thead>
           <tbody>
             {boxes.map((zone) => (
-              <tr key={zone.id}>
-                <td className="left">
-                  <span className="pill" data-tone={zone.kind}>
+              <Tr key={zone.id}>
+                <Td>
+                  <Stamp status={zoneStatus(zone)} size="sm">
                     {zoneLabel(zone)}
+                  </Stamp>
+                </Td>
+                <Td align="right">{zone.low.toFixed(2)}</Td>
+                <Td align="right">{zone.high.toFixed(2)}</Td>
+                <Td>
+                  <span className="flex items-center gap-2">
+                    <ConfidencePill level={zone.confidence} />
+                    <span className="text-note text-ink-soft">
+                      {refs === null ? "参考价数据不足" : `参考价命中 ${hitsOf(zone)}/3`}
+                    </span>
                   </span>
-                </td>
-                <td className="mono">{zone.low.toFixed(2)}</td>
-                <td className="mono">{zone.high.toFixed(2)}</td>
-                <td className="left">
-                  <ConfidencePill level={zone.confidence} />
-                  <span style={{ color: "#64748b", marginLeft: 8 }}>
-                    {refs === null ? "参考价数据不足" : `参考价命中 ${hitsOf(zone)}/3`}
-                  </span>
-                </td>
-                <td>
-                  <button type="button" className="tool" onClick={() => void removeZone(zone.id)}>
+                </Td>
+                <Td align="right">
+                  <Button size="sm" variant="ghost" onClick={() => void removeZone(zone.id)}>
                     删除
-                  </button>
-                </td>
-              </tr>
+                  </Button>
+                </Td>
+              </Tr>
             ))}
             {lines.map((zone) => (
-              <tr key={zone.id}>
-                <td className="left">
-                  <span className="pill">水平线</span>
-                </td>
-                <td className="mono" colSpan={2}>
+              <Tr key={zone.id}>
+                <Td>
+                  <Stamp status="neutral" size="sm">
+                    水平线
+                  </Stamp>
+                </Td>
+                <Td align="right" colSpan={2}>
                   {zone.low.toFixed(2)}
-                </td>
-                <td className="left" style={{ color: "#64748b" }}>
-                  拖动可改价格
-                </td>
-                <td>
-                  <button type="button" className="tool" onClick={() => void removeZone(zone.id)}>
+                </Td>
+                <Td className="text-note text-ink-soft">拖动可改价格</Td>
+                <Td align="right">
+                  <Button size="sm" variant="ghost" onClick={() => void removeZone(zone.id)}>
                     删除
-                  </button>
-                </td>
-              </tr>
+                  </Button>
+                </Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       )}
 
-      <h3 className="block-title">三个参考价</h3>
-      <table className="grid">
+      <SectionHead>三个参考价</SectionHead>
+      <DataTable>
         <tbody>
           {[
             { label: "EMA21", value: refs?.ema21 ?? null },
             { label: "AVWAP", value: refs?.avwap ?? null },
             { label: "前期高点", value: refs?.prevHigh ?? null },
           ].map((row) => (
-            <tr key={row.label}>
-              <td className="left">{row.label}</td>
-              <td className="mono">{row.value === null ? "—" : row.value.toFixed(2)}</td>
-              <td className="left" style={{ color: "#64748b" }}>
+            <Tr key={row.label}>
+              <Td>{row.label}</Td>
+              <Td align="right">{row.value === null ? "—" : row.value.toFixed(2)}</Td>
+              <Td className="text-note text-ink-soft">
                 {row.value === null
                   ? "数据不足"
                   : boxesContaining(row.value) === 0
                     ? "不在任何框内"
                     : `落在 ${boxesContaining(row.value)} 个框内`}
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
-      </table>
+      </DataTable>
 
       {snapshot.error !== null ? (
-        <div className="notice" data-tone="warn">
-          {snapshot.error}
-        </div>
+        <Alert variant="warning">
+          <AlertIcon />
+          <AlertContent>
+            <AlertDescription>{snapshot.error}</AlertDescription>
+          </AlertContent>
+        </Alert>
       ) : null}
       {refsError !== null ? (
-        <div className="notice" data-tone="warn">
-          {refsError}
-        </div>
+        <Alert variant="warning">
+          <AlertIcon />
+          <AlertContent>
+            <AlertDescription>{refsError}</AlertDescription>
+          </AlertContent>
+        </Alert>
       ) : null}
 
       <AiCard code={selected} scope={2} invalidateToken={fingerprint} />
 
-      <div className="panel-foot">
-        <button
-          type="button"
-          className="primary"
-          disabled={!hasHighConfidence}
-          onClick={() => flow.goStep(3)}
-        >
+      <div className="flex flex-wrap items-center gap-3">
+        <Button size="sm" disabled={!hasHighConfidence} onClick={() => flow.goStep(3)}>
           完成标注，进入第 3 步
-        </button>
-        {hasHighConfidence ? null : <span className="hint">至少需要一个高置信支撑区</span>}
+        </Button>
+        {hasHighConfidence ? null : (
+          <span className="text-note text-ink-soft">至少需要一个高置信支撑区</span>
+        )}
       </div>
     </>
   );

@@ -24,29 +24,29 @@ describe("主流程骨架", () => {
   it("顶部四步进度、左侧图表区、右侧面板都可见", async () => {
     const { container } = renderFlow();
     await waitFor(() => {
-      expect(container.querySelectorAll(".step-chip")).toHaveLength(4);
+      expect(container.querySelectorAll('[data-slot="step-chip"]')).toHaveLength(4);
     });
-    expect(container.querySelector(".chart-card")).not.toBeNull();
-    expect(container.querySelector(".panel")).not.toBeNull();
+    expect(container.querySelector('[data-slot="chart-card"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="flow-panel"]')).not.toBeNull();
   });
 
   it("收起按钮在四步进度条右侧，点一下把面板收起来", async () => {
     const { container } = renderFlow();
     await waitFor(() => {
-      expect(container.querySelectorAll(".step-chip")).toHaveLength(4);
+      expect(container.querySelectorAll('[data-slot="step-chip"]')).toHaveLength(4);
     });
 
-    const steps = container.querySelector(".steps")!;
+    const steps = container.querySelector('[data-slot="steps"]')!;
     const collapse = screen.getByRole("button", { name: "收起面板" });
     // 收起按钮是步骤条里的最后一个控件，位置在四步进度右侧。
     expect(steps.lastElementChild).toBe(collapse);
-    expect(container.querySelector(".flow")!.getAttribute("data-collapsed")).toBe("false");
-    expect(container.querySelector(".panel")).not.toBeNull();
+    expect(container.querySelector('[data-slot="flow"]')!.getAttribute("data-collapsed")).toBe("false");
+    expect(container.querySelector('[data-slot="flow-panel"]')).not.toBeNull();
 
     fireEvent.click(collapse);
 
-    expect(container.querySelector(".panel")).toBeNull();
-    expect(container.querySelector(".flow")!.getAttribute("data-collapsed")).toBe("true");
+    expect(container.querySelector('[data-slot="flow-panel"]')).toBeNull();
+    expect(container.querySelector('[data-slot="flow"]')!.getAttribute("data-collapsed")).toBe("true");
     expect(screen.getByRole("button", { name: "展开面板" })).toBeTruthy();
   });
 
@@ -70,10 +70,10 @@ describe("主流程骨架", () => {
   it("切到第 3 步自动换成分钟图", async () => {
     const { container } = renderFlow();
     await waitFor(() => {
-      expect(container.querySelectorAll(".step-chip")).toHaveLength(4);
+      expect(container.querySelectorAll('[data-slot="step-chip"]')).toHaveLength(4);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /等待买入信号/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /等待买入信号/ }));
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "等待买入信号" })).toBeTruthy();

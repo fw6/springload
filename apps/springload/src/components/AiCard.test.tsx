@@ -34,7 +34,7 @@ describe("AiCard", () => {
 
     const { container } = render(<AiCard code={null} scope={1} />);
 
-    expect(container.querySelector(".ai-card")).toBeNull();
+    expect(container.querySelector('[data-slot="ai-card"]')).toBeNull();
     expect(mockedInvoke).not.toHaveBeenCalled();
   });
 

@@ -1,0 +1,45 @@
+# 独立测试门槛：PR/push 触发，一次 pnpm install 之后跑 tsc + vitest + cargo test。
+# 发布走 release.yml（tag 触发），不在此重复。
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      # src-tauri（cargo test 会编译整个 workspace）需要 webkit 系系统库
+      - name: install dependencies (ubuntu only)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      # pnpm 版本取自 package.json 的 packageManager；必须在 setup-node 之前（cache: pnpm 要用到它）
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          # 缓存键的一代前缀，改这里可以让所有旧条目整体失效。
+          prefix-key: v1-rust
+          # pnpm 把 crate 归档成目录源放在仓库根内的 .pnpm/crates，依赖的 manifest
+          # 路径因此落在仓库根之下；rust-cache 用「manifest 在不在工作区根之下」
+          # 区分工作区成员与第三方依赖，根取仓库根会把全部依赖当成工作区成员从
+          # target 里删掉。根取 apps/springload、目标目录仍指回仓库根的 target。
+          workspaces: apps/springload -> ../../target
+
+      # 一次安装装完 npm 图（两个包）与 crate 图
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm test:rust

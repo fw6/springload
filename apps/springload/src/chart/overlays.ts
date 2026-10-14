@@ -1,4 +1,5 @@
 import { registerIndicator, registerOverlay } from "klinecharts";
+import { CHART_COLORS } from "./palette";
 
 export type ZoneKind = "support" | "gap";
 
@@ -8,8 +9,16 @@ interface ZoneExtend {
 }
 
 const palette: Record<ZoneKind, { fill: string; border: string; text: string }> = {
-  support: { fill: "rgba(15, 118, 110, 0.16)", border: "#0f766e", text: "#0f766e" },
-  gap: { fill: "rgba(180, 83, 9, 0.14)", border: "#b45309", text: "#b45309" },
+  support: {
+    fill: CHART_COLORS.levelFill,
+    border: CHART_COLORS.level,
+    text: CHART_COLORS.level,
+  },
+  gap: {
+    fill: CHART_COLORS.referenceFill,
+    border: CHART_COLORS.reference,
+    text: CHART_COLORS.reference,
+  },
 };
 
 /**
@@ -76,7 +85,7 @@ registerOverlay<SignalExtend>({
     if (point === undefined) return [];
     const half = 7;
     const height = 11;
-    const color = "#b45309";
+    const color = CHART_COLORS.reference;
     return [
       {
         key: "marker",
@@ -118,7 +127,7 @@ registerIndicator<AvwapPoint, number>({
   series: "price",
   calcParams: [0],
   precision: 2,
-  styles: { lines: [{ color: "#7c3aed", style: "dashed" }] },
+  styles: { lines: [{ color: CHART_COLORS.avwap, style: "dashed" }] },
   figures: [{ key: "avwap", title: "AVWAP: ", type: "line" }],
   calc: (dataList, indicator) => {
     const start = Math.max(0, Math.floor(Number(indicator.calcParams[0]) || 0));

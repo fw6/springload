@@ -66,6 +66,33 @@ fn migrations_are_idempotent_across_reopen() {
 }
 
 #[test]
+fn trading_calendar_query_walks_a_date_index_without_deduplicating() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open(&dir);
+    let conn = db.conn().unwrap();
+
+    // 交易日历是「库里出现过的所有日期」。`bar` 的主键是 (code, date)，
+    // 光靠它去重得扫完整条索引再建临时表，全市场一百多万行下要一秒多；
+    // 有了按日期单列的索引，SQLite 顺着它扫过去，相邻的重复值直接跳过。
+    let plan: Vec<String> = conn
+        .prepare("EXPLAIN QUERY PLAN SELECT DISTINCT date FROM bar ORDER BY date")
+        .unwrap()
+        .query_map([], |row| row.get::<_, String>(3))
+        .unwrap()
+        .map(|row| row.unwrap())
+        .collect();
+    let plan = plan.join("；");
+    assert!(
+        plan.contains("idx_bar_date"),
+        "交易日历查询应当走 idx_bar_date，实际计划：{plan}"
+    );
+    assert!(
+        !plan.contains("TEMP B-TREE"),
+        "交易日历查询不该再建临时表去重，实际计划：{plan}"
+    );
+}
+
+#[test]
 fn stock_round_trips() {
     let dir = tempfile::tempdir().unwrap();
     let db = open(&dir);

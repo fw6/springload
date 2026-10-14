@@ -89,29 +89,41 @@ pub fn signal_status(state: State<'_, AppState>, code: String) -> Result<SignalS
 }
 
 /// 抓一次这只股票的当日 1 分钟线，再判定触发；触发时写进 `signal` 表。
+///
+/// 抓分钟线要走网络，放在主线程上会把窗口冻住，所以挪到线程池。
 #[tauri::command]
-pub fn signal_evaluate(
+pub async fn signal_evaluate(
     state: State<'_, AppState>,
     code: String,
 ) -> Result<SignalStatusView, String> {
-    let mut conn = state.db().conn().map_err(|error| error.to_string())?;
-    let fetch = HttpMinuteFetch::new().map_err(|error| error.to_string())?;
-    minute::refresh_minute_bars(&mut conn, &fetch, &code, PERIOD_1M)
-        .map_err(|error| error.to_string())?;
-    let status = signal::evaluate(&conn, &code).map_err(|error| error.to_string())?;
-    if let Some(trigger) = &status.trigger {
-        signal::record_trigger(&conn, &code, status.zone.as_ref(), trigger)
+    let db = state.db().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = db.conn().map_err(|error| error.to_string())?;
+        let fetch = HttpMinuteFetch::new().map_err(|error| error.to_string())?;
+        minute::refresh_minute_bars(&mut conn, &fetch, &code, PERIOD_1M)
             .map_err(|error| error.to_string())?;
-    }
-    SignalStatusView::build(&conn, &code, status)
+        let status = signal::evaluate(&conn, &code).map_err(|error| error.to_string())?;
+        if let Some(trigger) = &status.trigger {
+            signal::record_trigger(&conn, &code, status.zone.as_ref(), trigger)
+                .map_err(|error| error.to_string())?;
+        }
+        SignalStatusView::build(&conn, &code, status)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /// 手动跑一轮轮询：刷新等待触发的股票与持仓的当日 1 分钟线，判定触发。
 #[tauri::command]
-pub fn poll_tick(state: State<'_, AppState>) -> Result<PollReport, String> {
-    let mut conn = state.db().conn().map_err(|error| error.to_string())?;
-    let fetch = HttpMinuteFetch::new().map_err(|error| error.to_string())?;
-    minute::poll_once(&mut conn, &fetch).map_err(|error| error.to_string())
+pub async fn poll_tick(state: State<'_, AppState>) -> Result<PollReport, String> {
+    let db = state.db().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = db.conn().map_err(|error| error.to_string())?;
+        let fetch = HttpMinuteFetch::new().map_err(|error| error.to_string())?;
+        minute::poll_once(&mut conn, &fetch).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /// 启动每分钟一次的轮询，每轮结束推一条 `poll://tick`。

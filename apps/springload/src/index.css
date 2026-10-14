@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+/*
+ * 报刊行情版：新闻纸铺底，油墨写字，套红只给当前版次与主操作。
+ * 涨跌沿用 A 股习惯：红涨、绿跌，任何版式下都不交换。
+ */
+@theme {
+  --font-paper:
+    -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue",
+    "Microsoft YaHei", sans-serif;
+  /*
+   * 报头与标题用宋体：macOS 走 Songti SC，Windows 走 SimSun，
+   * Linux 走常见的思源宋体或文鼎明体。三档都取不到时才落到通用衬线体。
+   */
+  --font-display:
+    "Songti SC", "STSong", "SimSun", "Source Han Serif SC", "Noto Serif CJK SC",
+    "Noto Serif SC", "AR PL UMing CN", "Times New Roman", serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+
+  /* 纸张与油墨 */
+  --color-paper: #e4e3de;
+  --color-slip: #efeee9;
+  --color-ink: #16161a;
+  --color-ink-soft: #56544c;
+  --color-rule: #a09c8c;
+  --color-rule-soft: #c4c1b4;
+  /* 控件边界要能被看出来，比栏线深一档（对纸张 3.08:1）。 */
+  --color-rule-strong: #84806f;
+
+  /* 套红：只给当前版次、主操作与「涨」 */
+  --color-proof: #b8232a;
+
+  /* 涨跌 */
+  --color-up: #b8232a;
+  --color-down: #1c6b4a;
+
+  /* 状态 */
+  --color-warn: #7d4e0c;
+  --color-warn-soft: #e9dcc3;
+  --color-alert: #b8232a;
+  --color-alert-soft: #ecd7d4;
+  --color-ok: #1c6b4a;
+
+  /* 字号层级：报纸的对比度靠字号拉开，不靠留白 */
+  --text-micro: 11px;
+  --text-micro--line-height: 1.45;
+  --text-note: 12px;
+  --text-note--line-height: 1.5;
+  --text-body: 13px;
+  --text-body--line-height: 1.6;
+  --text-lede: 14px;
+  --text-lede--line-height: 1.7;
+  --text-head: 16px;
+  --text-head--line-height: 1.35;
+  --text-title: 20px;
+  --text-title--line-height: 1.3;
+  --text-masthead: 30px;
+  --text-masthead--line-height: 1.1;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-paper);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  /* 新闻纸的纤维：铺一层极浅的颗粒，别让版面看起来像屏幕。 */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.55;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.22'/%3E%3C/svg%3E");
+  }
+
+  /* 铅字压痕：只用在报头这类大字上。 */
+  .press {
+    text-shadow:
+      0 1px 0 rgb(255 255 255 / 0.55),
+      0 -1px 0 rgb(0 0 0 / 0.14);
+  }
+
+  /* 数字与代码一律等宽，翻页时不会左右跳动。 */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * 原生 <dialog> 的滚动约束：模态打开时，落在遮罩上或对话框内部的滚动
+   * 都不许带给背后的页面。不动 html/body 的 overflow，避免滚动条消失引起
+   * 横向跳动、丢失滚动位置、破坏吸顶元素。
+   */
+  dialog:modal {
+    overscroll-behavior: contain;
+  }
+
+  dialog::backdrop {
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-proof);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

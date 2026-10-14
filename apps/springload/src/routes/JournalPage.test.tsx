@@ -106,7 +106,7 @@ describe("交易日志", () => {
     renderJournal();
 
     expect(await screen.findByText("交易笔数")).toBeTruthy();
-    const cells = Array.from(document.querySelectorAll(".result-cell")).map((cell) => ({
+    const cells = Array.from(document.querySelectorAll('[data-slot="result-cell"]')).map((cell) => ({
       label: cell.querySelector("dt")!.textContent ?? "",
       value: cell.querySelector("dd")!.textContent ?? "",
     }));

@@ -121,7 +121,7 @@ function renderPlan() {
 /** 表里的「标签 → 值」。 */
 function fields(container: HTMLElement): Record<string, string> {
   const out: Record<string, string> = {};
-  container.querySelectorAll("table.grid tbody tr").forEach((row) => {
+  container.querySelectorAll("table tbody tr").forEach((row) => {
     const cells = row.querySelectorAll("td");
     out[cells[0].textContent ?? ""] = cells[1].textContent ?? "";
   });

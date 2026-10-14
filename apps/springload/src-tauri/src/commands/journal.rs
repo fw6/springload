@@ -6,6 +6,7 @@ use crate::state::AppState;
 use springload_core::ai::{self, AiResult, ChatClient, Explanation, Scope};
 use springload_core::journal::{self, JournalView, ManualEntry};
 use springload_core::storage::trade_log::{self, TradeLogEntry};
+use springload_core::storage::Database;
 use std::sync::Arc;
 use tauri::State;
 
@@ -40,16 +41,20 @@ pub fn journal_export_csv(state: State<'_, AppState>, path: String) -> Result<()
 }
 
 /// AI 复盘总结：描述已经发生的结果，不给判断。
+///
+/// 要等模型返回，可能十几秒，挪到线程池里跑，别占住主线程。
 #[tauri::command]
-pub fn journal_review(state: State<'_, AppState>) -> Result<Explanation, String> {
-    journal_review_with(state.inner(), ai::default_client)
+pub async fn journal_review(state: State<'_, AppState>) -> Result<Explanation, String> {
+    let db = state.db().clone();
+    tauri::async_runtime::spawn_blocking(move || journal_review_with(&db, ai::default_client))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 /// `journal_review` 的接线主体：模型客户端由调用方给出，便于测试注入。
-pub fn journal_review_with<F>(state: &AppState, client: F) -> Result<Explanation, String>
+pub fn journal_review_with<F>(db: &Database, client: F) -> Result<Explanation, String>
 where
     F: FnOnce() -> AiResult<Arc<dyn ChatClient>>,
 {
-    ai::explain(state.db(), client, JOURNAL_CODE, Scope::Journal)
-        .map_err(|error| error.to_string())
+    ai::explain(db, client, JOURNAL_CODE, Scope::Journal).map_err(|error| error.to_string())
 }

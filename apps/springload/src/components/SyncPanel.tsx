@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   SYNC_PROGRESS_EVENT,
@@ -7,10 +7,8 @@ import {
   type SyncReport,
   type SyncStatus,
 } from "../api/market";
-
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+import { toMessage } from "../api/invoke";
+import { StatefulButton } from "./ui/button";
 
 /** 把 ISO 时间显示成本地时间；无法解析时原样显示。 */
 function displayTime(value: string | null): string {
@@ -27,7 +25,7 @@ function percent(status: SyncStatus): number {
 }
 
 /**
- * 同步面板：显示同步进度与最近同步时间，并可以手动触发一次回补。
+ * 同步栏：显示同步进度与最近同步时间，并可以手动触发一次回补。
  *
  * 进度来自 `sync://progress` 事件，初始状态与最近同步时间来自 `sync_status` 命令。
  */
@@ -35,7 +33,7 @@ export function SyncPanel() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [report, setReport] = useState<SyncReport | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, startBusy] = useTransition();
 
   useEffect(() => {
     let active = true;
@@ -50,15 +48,15 @@ export function SyncPanel() {
           stop();
         }
       })
-      .catch((err: unknown) => {
-        if (active) setError(message(err));
+      .catch((cause: unknown) => {
+        if (active) setError(toMessage(cause));
       });
     syncStatus()
       .then((next) => {
         if (active) setStatus(next);
       })
-      .catch((err: unknown) => {
-        if (active) setError(message(err));
+      .catch((cause: unknown) => {
+        if (active) setError(toMessage(cause));
       });
     return () => {
       active = false;
@@ -66,67 +64,71 @@ export function SyncPanel() {
     };
   }, []);
 
-  const start = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await syncMarket(false);
-      setReport(result);
-      setStatus(await syncStatus());
-    } catch (err: unknown) {
-      setError(message(err));
-    } finally {
-      setBusy(false);
-    }
+  const start = () => {
+    startBusy(async () => {
+      try {
+        const result = await syncMarket(false);
+        setReport(result);
+        setStatus(await syncStatus());
+        setError(null);
+      } catch (cause: unknown) {
+        setError(toMessage(cause));
+      }
+    });
   };
 
+  const running = status?.running ?? false;
+
   return (
-    <section className="panel sync-panel" aria-label="行情同步">
-      <div className="sync-panel-head">
-        <h3>行情同步</h3>
-        <button type="button" onClick={start} disabled={busy || (status?.running ?? false)}>
-          {status?.running ? "同步中…" : "立即同步"}
-        </button>
+    <section aria-label="行情同步" className="flex flex-col gap-2.5 border-t border-rule pt-3">
+      <div className="flex items-center gap-3">
+        <h3 className="font-display text-body font-bold text-ink">行情同步</h3>
+        <StatefulButton
+          className="ml-auto"
+          size="sm"
+          variant="secondary"
+          state={running || busy ? "loading" : "idle"}
+          loadingText={running ? "同步中…" : "启动中…"}
+          disabled={running}
+          onClick={() => start()}
+        >
+          立即同步
+        </StatefulButton>
       </div>
 
       {status !== null ? (
         <>
-          <p className="sync-panel-time">最近同步：{displayTime(status.lastSyncAt)}</p>
+          <p className="text-note text-ink-soft">最近同步：{displayTime(status.lastSyncAt)}</p>
           <div
-            className="sync-progress"
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={percent(status)}
             aria-label="同步进度"
-            style={{ height: 8, borderRadius: 4, background: "#e5e7eb", overflow: "hidden" }}
+            className="h-1.5 border border-rule-strong bg-slip"
           >
             <div
-              className="sync-progress-fill"
-              style={{ width: `${percent(status)}%`, height: "100%", background: "#2563eb" }}
+              className="h-full bg-ink transition-[width] duration-300"
+              style={{ width: `${percent(status)}%` }}
             />
           </div>
-          <p className="sync-panel-message">
+          <p className="text-note text-ink-soft">
             {status.total > 0 ? `${status.done} / ${status.total} · ` : ""}
             {status.message}
           </p>
         </>
       ) : (
-        <p className="hint">正在读取同步状态…</p>
+        <p className="text-note text-ink-soft">正在读取同步状态…</p>
       )}
 
       {report !== null ? (
-        <p className="sync-panel-report">
+        <p className="text-note text-ink-soft">
           本次写入 {report.stocks} 只股票、{report.bars} 根日线，用时 {report.elapsedMs} 毫秒
           {report.errors.length > 0 ? `，${report.errors.length} 只失败` : ""}
         </p>
       ) : null}
 
-      {error !== null ? (
-        <p className="notice" data-tone="risk">
-          同步失败：{error}
-        </p>
-      ) : null}
+      {error !== null ? <p className="text-note text-alert">同步失败：{error}</p> : null}
     </section>
   );
 }
