@@ -1,0 +1,374 @@
+apps/springload/src/copy/BeginnerModeContext.tsx
+  s_3f08ad2b3b34f7::t_462bc955b84dfb 12,40,55-56,65
+apps/springload/src/flow/steps/Step4.test.tsx
+  s_3f08ad2b3b34f7::t_f1601e40374eae 32
+  s_3f08ad2b3b34f7::t_5dd6d9e0b9cf0f 9
+  s_3f08ad2b3b34f7::t_7a32c1cb0dcf79 89-127,227-236,238-240
+  s_3f08ad2b3b34f7::t_a420c7fc9a652a 237
+  s_3f08ad2b3b34f7::t_383f14069c9032 155
+crates/springload-core/src/ai/mod.rs
+  s_3f08ad2b3b34f7::t_5f0e95eafa11b9 14,125,141,150,158,188,190
+crates/springload-core/src/flow.rs
+  s_3f08ad2b3b34f7::t_40a32e92ddff21 141,149,154,165,171,174,184,188,200
+  s_3f08ad2b3b34f7::t_9d2491c6bf6260 8,23-25,41
+crates/springload-core/src/market/tdx.rs
+  s_d301be115b8ad7::t_106faccb68b440 330-332,334,336-338
+  s_d301be115b8ad7::t_4458f2636c33c6 258-260,262,267-272,278,283-291,298,305,318-320
+  s_d301be115b8ad7::t_ab8b94f0c6e65d 381-392
+  s_3f08ad2b3b34f7::t_50b9bffeaa8712 343-347,349
+  s_d301be115b8ad7::t_f64e3439a42026 1,3-11,15-57,66-67,69-100,102-105,108-150,153,164-179,192-224,228-234,236-240,254,257,261,263-266,273-277,279-282,292-297,299-304,306-313,322-323,367-380,393-441,459-465
+  s_3f08ad2b3b34f7::t_ca7505ad6d108a 14
+  s_d301be115b8ad7::t_6ede641ad7c7fe 160
+  s_d301be115b8ad7::t_bcaeb67e2f7014 58-60,62-65
+  s_d301be115b8ad7::t_7684e639e42dcb 68
+  s_d301be115b8ad7::t_2ca37f953ecaea 151-152,154-159,161-162
+  s_d301be115b8ad7::t_148d376df2a954 163,180-191
+  s_3f08ad2b3b34f7::t_0503b83c1924ac 225
+  s_3f08ad2b3b34f7::t_626f0851ecfa43 226-227,235,241-244,246-253,442-458
+  s_d301be115b8ad7::t_b268d9a25496b4 324-329,333,335,339-342,351-363
+apps/springload/src/flow/steps/Step4.tsx
+  s_3f08ad2b3b34f7::t_a92ccf34e218af 111-112,119-120,196,237-238,251
+  s_3f08ad2b3b34f7::t_e31dbe92af1589 16,19,29-30,44,125,132,139,269,286-289
+  s_3f08ad2b3b34f7::t_6fc69e3fb201a3 7
+  s_3f08ad2b3b34f7::t_d43bc2c1e38a21 195
+crates/springload-core/tests/backfill_test.rs
+  s_3f08ad2b3b34f7::t_34f81dc427a0cd 25
+  s_3f08ad2b3b34f7::t_0561d5a8df15e6 489,493-494,513-514,538-539
+  s_3f08ad2b3b34f7::t_0628fcd1cc8813 8,16,32-36,52-53,127-128,130-131,133-135,137-138,140,153,155-156,162,164-173,181,202,249,264,285,298,317,327,336,363,372,399-403,405,408-411
+  s_d301be115b8ad7::t_7c7eabebefc8f4 344
+  s_d301be115b8ad7::t_b3ca078a7db038 1,3,6,9-10,14-15,17-18,22-23,26-27,31,37-48,51,58,62,67,78-80,82-83,87-97,100-107,111-112,125,136,142,148-149,154,159,180,182-192,203-204,208,211-217,219-226,229,237-238,242,244,247-248,252-253,255-263,265-274,276-284,286-297,299-316,318-321,326,335,342,361-362,364-367,371,377,379,383
+  s_3f08ad2b3b34f7::t_4e890b0d81b21f 250-251,254
+  s_3f08ad2b3b34f7::t_c5af22ab335133 343,347-354,412-488,490-492,495-512,515-537,540-544
+  s_d301be115b8ad7::t_5c11e616969334 230
+  s_3f08ad2b3b34f7::t_f4ad9023fbc8c1 56-57,63-66,69-75
+apps/springload/src-tauri/src/commands/sizing.rs
+  s_3f08ad2b3b34f7::t_392aeb074afd16 3,5,8-9,11-12
+apps/springload/src-tauri/src/commands/positions.rs
+  s_3f08ad2b3b34f7::t_199d3a2aaf3cda 20-21,23,35-36,50-51
+crates/springload-core/src/sizing.rs
+  s_3f08ad2b3b34f7::t_981ad2a15e2941 5-6,9,19,21,23,37,49,51-52,68,74,79,98
+  s_3f08ad2b3b34f7::t_5a892af1327270 124,143,153,161,164,176,183,190,195-201,206,214,217-221
+apps/springload/src-tauri/src/commands/app.rs
+  s_3f08ad2b3b34f7::t_1b26c1b81e5a75 22-23
+  s_3f08ad2b3b34f7::t_392aeb074afd16 1-2,8,11,16-21,54-60
+apps/springload/src-tauri/tests/journal_test.rs
+  s_3f08ad2b3b34f7::t_9fe338aab20638 117
+docs/agents/architecture.md
+  s_3f08ad2b3b34f7::t_9151c410bbcb1f 7-13,20-28,91-92,94,132-138,183-214,219-220,224-225,228-230,234-237,241,243-244,383,393-400,404-406,408
+  s_3f08ad2b3b34f7::t_6607a0397f7c73 17-19
+  s_d301be115b8ad7::t_7ec70498e86e33 97
+  s_3f08ad2b3b34f7::t_3c6659e9c25db8 416,419-420,462-465,476,508-511,564-566
+  s_d301be115b8ad7::t_a050cf366bb805 215-218,221-223,226-227,231
+  s_d301be115b8ad7::t_1fa7b66dbd9f98 246
+  s_3f08ad2b3b34f7::t_743698e32c52c8 14-16,93
+apps/springload/src/api/settings.ts
+  s_3f08ad2b3b34f7::t_501a6ccc6c67f2 2-10,14-15,25-28,32-35
+crates/springload-core/src/market/mod.rs
+  s_d301be115b8ad7::t_586960faaa3c6f 226-236,238-247
+  s_d301be115b8ad7::t_4015c70ace307d 15-16
+  s_3f08ad2b3b34f7::t_b9e714dcfc8c11 1-4,13,18
+  s_d301be115b8ad7::t_64e9daacae1839 10
+  s_3f08ad2b3b34f7::t_9c388e37792106 107-109,111-175,177,180,186-225,237,250-251,253-258,264-271
+  s_3f08ad2b3b34f7::t_dd49ebf0450d20 110
+  s_d301be115b8ad7::t_605e172a5a8cee 248-249,252,259-263,272-273
+  s_3f08ad2b3b34f7::t_f0d8d49d55fe59 176,178-179,181-185
+apps/springload/src-tauri/tests/ai_test.rs
+  s_3f08ad2b3b34f7::t_9fe338aab20638 290-293,301,327,345,367,388,396,410-411,424-426,442-444,451,463-465,481-482,566,607,641-642,669,685
+  s_3f08ad2b3b34f7::t_34f81dc427a0cd 5,287
+  s_3f08ad2b3b34f7::t_41ffde2e0f7c2e 305,329,335,347,350,358,371,378,390,392,400,415,429,447,453,468,485,724,729,735
+crates/springload-core/src/minute.rs
+  s_d301be115b8ad7::t_88ca7d23a2c5e8 115-127,129-137,140,142-149,152,154-158
+  s_d301be115b8ad7::t_d56b3e29c5a23c 23,25-35
+  s_d301be115b8ad7::t_86d39672db6156 80,91
+  s_3f08ad2b3b34f7::t_1c33a84a1f2eff 3-5,12
+  s_d301be115b8ad7::t_c280812c8ebc93 10-11,13
+  s_d301be115b8ad7::t_3ce4be07f38335 42,46-52
+apps/springload/src-tauri/src/commands/plan.rs
+  s_3f08ad2b3b34f7::t_199d3a2aaf3cda 20
+apps/springload/src/routes/JournalPage.tsx
+  s_3f08ad2b3b34f7::t_1030b792d1e31c 20,162
+  s_3f08ad2b3b34f7::t_a92ccf34e218af 21,163
+  s_3f08ad2b3b34f7::t_21cd4e26bfae9e 50-51
+crates/springload-core/tests/network_test.rs
+  s_3f08ad2b3b34f7::t_8733d4a0dd17b2 299-340
+  s_3f08ad2b3b34f7::t_1629f003662089 341-376
+  s_d301be115b8ad7::t_8c6bc5e67c5688 6-7,24,26,29-49,51-59
+  s_3f08ad2b3b34f7::t_06623891c42030 65,73,83,98
+  s_3f08ad2b3b34f7::t_5c9604707750c0 1,8-9,27-28,112-114,185-297
+  s_3f08ad2b3b34f7::t_0472fdeb0369bc 152-184
+  s_3f08ad2b3b34f7::t_f4fd8ddcfdde30 10
+  s_d301be115b8ad7::t_0dd7256a64ed6c 25,50,109
+apps/springload/src-tauri/tests/positions_test.rs
+  s_3f08ad2b3b34f7::t_34f81dc427a0cd 7,187
+  s_d301be115b8ad7::t_0ad7287cace472 22-34,229,265,298
+apps/springload/src/routes/PlanPage.tsx
+  s_3f08ad2b3b34f7::t_9a224c89173d17 92
+  s_3f08ad2b3b34f7::t_21cd4e26bfae9e 147
+  s_3f08ad2b3b34f7::t_1030b792d1e31c 20,43,64-70,82,284
+apps/springload/src/index.css
+  s_3f08ad2b3b34f7::t_54a907a0e0867e 5-6
+crates/springload-core/tests/config_test.rs
+  s_3f08ad2b3b34f7::t_c1958d0ab3683b 4,33-38,75-79,88-119
+  s_3f08ad2b3b34f7::t_a889191d000ce5 25,83
+docs/需求规格说明书.md
+  s_3f08ad2b3b34f7::t_b2a57d3cd8a238 140-142,281,298,303
+crates/springload-core/Cargo.toml
+  s_d301be115b8ad7::t_fdcff171e60fd0 29-30
+  s_3f08ad2b3b34f7::t_8d4d1fe61b170b 13-16
+  s_3f08ad2b3b34f7::t_fd50cedcc76f7a 37-40
+crates/springload-core/src/screening.rs
+  s_3f08ad2b3b34f7::t_6d026556873410 43,48,54
+  s_3f08ad2b3b34f7::t_f95285ee957673 326,328-335
+  s_3f08ad2b3b34f7::t_3523d231460712 5-6,15,18
+  s_3f08ad2b3b34f7::t_13541cc7ea73da 651-654,657,663,669,673-684
+apps/springload/src-tauri/src/commands/adjustment.rs
+  s_d301be115b8ad7::t_697182112c9d07 11
+  s_d301be115b8ad7::t_2d70e514f00650 6
+  s_3f08ad2b3b34f7::t_199d3a2aaf3cda 16-17,19,32-34,36
+apps/springload/src-tauri/src/commands/settings.rs
+  s_3f08ad2b3b34f7::t_f8be7d926719d5 42
+crates/springload-core/src/backfill.rs
+  s_d301be115b8ad7::t_c75ce1a451075f 5,10-11,19
+  s_d301be115b8ad7::t_28d0dcc008c29d 13
+  s_3f08ad2b3b34f7::t_2b8c584a62ae33 343-345
+  s_d301be115b8ad7::t_123d3fe5ad6507 29-34
+  s_3f08ad2b3b34f7::t_a69e892fab9bd4 364-367,379-390,392,394-396,398-406,408,413-415,417-426,433,438,446-458,461-464,467-486
+  s_3f08ad2b3b34f7::t_a5a87c808e06db 210,221,240,245
+  s_d301be115b8ad7::t_be64cd6ccebe90 348-354
+  s_3f08ad2b3b34f7::t_397ebf1e7b61db 110,112
+  s_d301be115b8ad7::t_a68d9c5003bde9 168
+  s_d301be115b8ad7::t_7f8ce0913a6e25 313-320,337
+  s_3f08ad2b3b34f7::t_7217fa36353d25 3-4,6-9,20,25
+  s_d301be115b8ad7::t_ccb1050381bfe8 206,209,219,239,258,267,284-287
+  s_d301be115b8ad7::t_043a2a8c188f5e 346-347,356-359,370,373,410-412,416,427-432,439-440,443,489-498
+  s_3f08ad2b3b34f7::t_da5bb22c72ae21 15
+  s_3f08ad2b3b34f7::t_28695038b85612 138,140-144,146-161,163,166-167,170
+  s_d301be115b8ad7::t_60557d7d08264b 312,336
+  s_3f08ad2b3b34f7::t_96b630741c2b21 501-510
+  s_3f08ad2b3b34f7::t_e629246d682b30 18,39-43
+  s_d301be115b8ad7::t_f78c7ce390139c 289-290,355,360-361,393,409
+apps/springload/src-tauri/src/commands/signal.rs
+  s_3f08ad2b3b34f7::t_199d3a2aaf3cda 99-100,103,119-120,123,130-132,134-143
+  s_d301be115b8ad7::t_2d70e514f00650 9
+apps/springload/src/App.tsx
+  s_3f08ad2b3b34f7::t_a0367a5423ad9d 3,35-45,47-62,64-85,88,133,141-142,144-165,170,172,175,185-190,192-193,195-198,206,208-209,216-220
+  s_3f08ad2b3b34f7::t_a92ccf34e218af 5,7,46,173-174,179-180
+  s_3f08ad2b3b34f7::t_eb38bca5cff4bf 63
+  s_3f08ad2b3b34f7::t_fc9b50a7fce3bf 6
+apps/springload/src/routes/PlanPage.test.tsx
+  s_3f08ad2b3b34f7::t_081f2c601fbc60 236
+  s_3f08ad2b3b34f7::t_c6ab6473b7c8f2 245
+crates/springload-core/src/alerts.rs
+  s_3f08ad2b3b34f7::t_f832640826d3b3 477,482,487-513,527,551,565,583,598,617
+  s_a49ac55da6df16::t_79add4e61f120c 261,267,269,279
+  s_a49ac55da6df16::t_bb836c74145405 293,300,302,312
+  s_a49ac55da6df16::t_9f36072be6083c 301
+  s_3f08ad2b3b34f7::t_ff6a416187bc35 89,91-101
+  s_3f08ad2b3b34f7::t_91f0d292759c6a 1,5-7,11
+  s_a49ac55da6df16::t_cb65f5e8bac301 268
+  s_a49ac55da6df16::t_c614752e804004 237
+  s_3f08ad2b3b34f7::t_7355095d02cd6a 125,136,142
+  s_3f08ad2b3b34f7::t_74a0dde9b3732f 189,192,195,201-205,208,215,225,241,247,259,265,281,291,297,313,326,354
+apps/springload/src/chart/KLineChart.tsx
+  s_3f08ad2b3b34f7::t_08265b0de71fd2 6,52-53
+  s_3f08ad2b3b34f7::t_2835c8c4ca546b 9
+  s_3f08ad2b3b34f7::t_8ed907ffb01ffb 54-55,142-143,147-152,157-159,161,164-166,169-171,173,176-177,180-181,239,283
+crates/springload-core/tests/market_test.rs
+  s_3f08ad2b3b34f7::t_06623891c42030 241,259
+  s_d301be115b8ad7::t_77cd0caa64c978 4,10,12-27,30,32-36,39,41-47
+  s_3f08ad2b3b34f7::t_919b48c96d849e 1-2,8,283-289
+  s_3f08ad2b3b34f7::t_a889191d000ce5 66,87,106,114,136,173,194,201
+  s_3f08ad2b3b34f7::t_c08f12504c3304 290-299
+  s_3f08ad2b3b34f7::t_0628fcd1cc8813 250
+apps/springload/src/routes/SettingsPage.tsx
+  s_3f08ad2b3b34f7::t_8d2eb5bae0cb3f 74-76
+  s_3f08ad2b3b34f7::t_a92ccf34e218af 2,21,49-50,59,122-123,136,255-256,324
+  s_3f08ad2b3b34f7::t_636e55a33e25b9 8,20,32-44,47-48,60,66-67,127-131,209,212-213,244-246,250-251,260
+apps/springload/src/chart/zoneStore.ts
+  s_3f08ad2b3b34f7::t_f0cb6fa85494f9 47-52
+crates/springload-core/src/fees.rs
+  s_3f08ad2b3b34f7::t_128fddfd1c503c 1,3-6,8,19,26,50-76,80-86,95,97,113,126,135,142,149-163
+apps/springload/src/App.test.tsx
+  s_3f08ad2b3b34f7::t_b37c797b0288ea 7,99-166
+  s_3f08ad2b3b34f7::t_f1601e40374eae 57,83
+crates/springload-core/tests/adjustment_test.rs
+  s_d301be115b8ad7::t_b278c46135bb10 9,168-181,249,259,268,273-276,282-283,286,288,297
+  s_3f08ad2b3b34f7::t_5b2a46a7bf7c70 12
+  s_d301be115b8ad7::t_18fd7e5a34b1f2 3-5,7,11,19-43,45-50,53-61,79-82,85,87,90-91,94-95,98-99,125,147-155,159-164,185-216,228-230,238-239,243,253,255-258,264,272,278-280,293-295,305,311,313-316,319,328-335,341-344,348,350,360,362,364-368,371
+  s_3f08ad2b3b34f7::t_7c43bd4c8901d4 86
+  s_d301be115b8ad7::t_7dc5d76bfbec22 369,373
+apps/springload/src/chart/palette.ts
+  s_3f08ad2b3b34f7::t_54a907a0e0867e 49-53
+  s_3f08ad2b3b34f7::t_8ed907ffb01ffb 41-43,45
+  s_3f08ad2b3b34f7::t_462bc955b84dfb 5-8,10-15,17-20,40,44,46-48
+apps/springload/src/api/screen.ts
+  s_3f08ad2b3b34f7::t_b51e4d300f6e3a 17
+apps/springload/DESIGN.md
+  s_3f08ad2b3b34f7::t_54a907a0e0867e 216,239,243,363
+  s_3f08ad2b3b34f7::t_e22957a4621497 3,241-242,276,362,404
+apps/springload/src/routes/PositionsPage.tsx
+  s_3f08ad2b3b34f7::t_a92ccf34e218af 19,50,85,115,227
+  s_3f08ad2b3b34f7::t_1030b792d1e31c 49,114
+  s_3f08ad2b3b34f7::t_fc9b50a7fce3bf 20
+  s_3f08ad2b3b34f7::t_78c2bdded31976 91,166,226,228
+apps/springload/PRODUCT.md
+  s_3f08ad2b3b34f7::t_633679205e9ee1 67
+  s_3f08ad2b3b34f7::t_e22957a4621497 3,48-51,58-60,66
+apps/springload/src/routes/SettingsPage.test.tsx
+  s_3f08ad2b3b34f7::t_383f14069c9032 45,106-109,167-187
+  s_3f08ad2b3b34f7::t_65ea908ac8d4aa 10-18
+apps/springload/src/api/sizing.ts
+  s_3f08ad2b3b34f7::t_8ed907ffb01ffb 15-16
+apps/springload/src-tauri/tests/settings_test.rs
+  s_3f08ad2b3b34f7::t_207bfa4079d3d4 96,105,109-110,116
+docs/research/us-quote-source.md
+  s_3f08ad2b3b34f7::t_f2bccc8c20e803 1-3,7-18,44-52,56,58-63,65-66,71,76-106,110-184,210,212-214
+  s_3f08ad2b3b34f7::t_6607a0397f7c73 192-207
+  s_3f08ad2b3b34f7::t_bc2790e2e6a802 4-6,19-43,57,64,67-70,72-75,107-109,191,209
+  s_3f08ad2b3b34f7::t_f4b60b8cdf1513 53-55,211
+  s_3f08ad2b3b34f7::t_9a4bb4a379def9 185-190,208
+apps/springload/src/copy/riskNotes.test.ts
+  s_3f08ad2b3b34f7::t_62f403d38e8ebe 1-30
+crates/springload-core/src/plan.rs
+  s_3f08ad2b3b34f7::t_79a8de4d097098 63,70
+  s_3f08ad2b3b34f7::t_bfef2913188d3c 7
+crates/springload-core/src/market/sina.rs
+  s_3f08ad2b3b34f7::t_72d9ea14234178 150-151,153-157,167
+  s_3f08ad2b3b34f7::t_1697ca77883829 32-36,38-41,46
+  s_3f08ad2b3b34f7::t_4c8c6d9ffc6e81 3-8,11,43
+  s_3f08ad2b3b34f7::t_e24e40b3df598d 37
+  s_3f08ad2b3b34f7::t_1cbe5671e0d13a 83,107-109,115-149,152,158-166,168-179
+apps/springload/src-tauri/src/app.rs
+  s_3f08ad2b3b34f7::t_c4af3f4bda002d 44
+crates/springload-core/src/market/tencent.rs
+  s_3f08ad2b3b34f7::t_a1ae0c7a67748e 5-8,11
+  s_3f08ad2b3b34f7::t_c6a9c8b2589393 42-50,55,58,67,75,109-111,117-161
+apps/springload/src/test-utils.tsx
+  s_3f08ad2b3b34f7::t_3209875f6ee493 7,78-79,81-85,89-98,101,111-112,122
+  s_3f08ad2b3b34f7::t_d43bc2c1e38a21 9,134-138,140-144
+apps/springload/src-tauri/src/state.rs
+  s_3f08ad2b3b34f7::t_91125b6780c4e6 28,58,140
+  s_3f08ad2b3b34f7::t_1b26c1b81e5a75 89
+  s_3f08ad2b3b34f7::t_569dbe13e8115f 1-4,10,12,14-21,25-27,34,46-50,52-57,64-79,81-82,86-88,90,95,97,106-107,111-113,117-139,141-145
+crates/springload-core/src/storage/bar_sync_state.rs
+  s_d301be115b8ad7::t_ceba441c0154bb 31-32
+apps/springload/src-tauri/tests/adjustment_test.rs
+  s_3f08ad2b3b34f7::t_34f81dc427a0cd 12
+  s_d301be115b8ad7::t_7dc5d76bfbec22 228,254,270
+  s_d301be115b8ad7::t_46c2503b1592e0 3-6,10-11,15,25-32,34-44,47-59,77-80,83,85,88-89,92-97,99,101-104,171,185-186,223,225,227,231,233,236,239-242,247-250,263,269
+  s_d301be115b8ad7::t_cfdb45aa296093 258,264-267
+  s_3f08ad2b3b34f7::t_7c43bd4c8901d4 84
+crates/springload-core/tests/glossary_test.rs
+  s_3f08ad2b3b34f7::t_a889191d000ce5 3,33,47,53,63,73,82
+apps/springload/src/api/app.ts
+  s_3f08ad2b3b34f7::t_4b206afc1a5708 3-5,9-16,21
+crates/springload-core/src/storage/bar.rs
+  s_3f08ad2b3b34f7::t_1af16c24339a88 4
+  s_3f08ad2b3b34f7::t_6c50c9b774225a 94-105
+apps/springload/src/copy/riskNotes.ts
+  s_3f08ad2b3b34f7::t_a92ccf34e218af 2-3,12,15,22-37
+  s_3f08ad2b3b34f7::t_501a6ccc6c67f2 6-7,13,16-17,40-48
+apps/springload/src/copy/MarketContext.tsx
+  s_3f08ad2b3b34f7::t_8ed907ffb01ffb 19
+  s_3f08ad2b3b34f7::t_eb38bca5cff4bf 91-100
+  s_3f08ad2b3b34f7::t_c2195b72d48991 1-18,20-56,58-60,67-90,101-106
+  s_3f08ad2b3b34f7::t_1030b792d1e31c 57,61-66
+apps/springload/src-tauri/src/commands/journal.rs
+  s_3f08ad2b3b34f7::t_199d3a2aaf3cda 9,21-23,51-57,61,65
+apps/springload/src/components/AdjustmentPanel.tsx
+  s_3f08ad2b3b34f7::t_b51e4d300f6e3a 9,17-18,23,69,75-76,79-80
+  s_3f08ad2b3b34f7::t_6607a0397f7c73 19-20,77-78
+docs/research/suspension-and-adjustment.md
+  s_d301be115b8ad7::t_e1d2e345f23512 413
+  s_d301be115b8ad7::t_890e8bcdce292e 350-352,358,361-362,364,366,369-370,373-374,376,378-379,381-383,385,387-389,391,394-396,399-401,405-406
+crates/springload-core/src/config.rs
+  s_3f08ad2b3b34f7::t_b0a7834ed2aeee 254,264-265
+  s_3f08ad2b3b34f7::t_2af1c270060643 4-6,9,18-51,57-58,77-80,86,96-107,116,126-127,134-136,164-168
+  s_3f08ad2b3b34f7::t_82710cb3e2bdde 204-206
+crates/springload-core/src/storage/migrations.rs
+  s_d301be115b8ad7::t_e191c171c0471f 164-172,174-179
+crates/springload-core/src/adjustment.rs
+  s_d301be115b8ad7::t_1abfa0b079bbd8 133-134
+  s_d301be115b8ad7::t_7dc5d76bfbec22 151
+  s_d301be115b8ad7::t_6e7ce4e658fd71 12
+  s_d301be115b8ad7::t_904980d727c3a3 117,137,164
+  s_d301be115b8ad7::t_c0c8dafaac05ab 90-106
+  s_d301be115b8ad7::t_ea7e9de422dc55 171,175-178
+  s_d301be115b8ad7::t_f540f4a60b7f16 191-192,195,202,219,226-228,230-232
+  s_d301be115b8ad7::t_3f4b66705ff3b6 250,267-268
+  s_d301be115b8ad7::t_07d4e722b06789 8-10,13,20,22
+  s_d301be115b8ad7::t_d93e5adaa44187 247-249,251,254-255,262-266,273-275,281
+  s_d301be115b8ad7::t_cbd8c346eebdf1 70-77,79-86
+crates/springload-core/src/ai/prompts.rs
+  s_3f08ad2b3b34f7::t_311007e6c6847a 5-6,12
+  s_3f08ad2b3b34f7::t_aa5bdc37e21d9f 30-31,33-37,49,76,82,89,112,165,170,172,174,185,194,200,204,207,215,270-271
+crates/springload-core/src/market/us.rs
+  s_3f08ad2b3b34f7::t_db1df83c7759f4 353,359,362-363
+  s_3f08ad2b3b34f7::t_d3aeccf7e2866e 14
+  s_3f08ad2b3b34f7::t_ad5d5243e742bb 1-2,21-22,29,31,38-40,43-48,66-80,99-105,112-118,127,131-134,187-226,228,230,233,236,238-243,364-383
+  s_3f08ad2b3b34f7::t_dac953cd072427 3-13,15-20,23-28,30,32-37,41-42,49-65,81-98,106-111,119-126,128-130,135-186,227,229,231-232,234-235,237,244-352,354-358,360-361,384-418
+apps/springload/src-tauri/src/commands/screen.rs
+  s_3f08ad2b3b34f7::t_199d3a2aaf3cda 8,57,140,144-146,148-173
+apps/springload/src-tauri/tests/commands_test.rs
+  s_3f08ad2b3b34f7::t_2be122452d267b 1-2,30,71,88-90,92,96-114,116-150,173,183-187
+  s_3f08ad2b3b34f7::t_1b26c1b81e5a75 91,115
+docs/research/tdx-quote-source.md
+  s_d301be115b8ad7::t_a1e322e2f73627 151-207
+  s_d301be115b8ad7::t_0cbf400798992d 1-150,208-227,229-251
+  s_d301be115b8ad7::t_c43e6a43dfaf61 228
+apps/springload/src-tauri/src/commands/market.rs
+  s_3f08ad2b3b34f7::t_cdf14d6cdb40b2 8
+  s_3f08ad2b3b34f7::t_15250f4e52417b 45,52-54,61-62,105-107,109-114,116,120-133
+  s_d301be115b8ad7::t_2d70e514f00650 7
+  s_3f08ad2b3b34f7::t_0db8020315fede 115,117-119
+crates/springload-core/src/error.rs
+  s_a49ac55da6df16::t_87f0396245af3f 90-120
+  s_a49ac55da6df16::t_2bac20d402d8e8 7-8,12,23,39,44-48,52,54,60-61
+  s_a49ac55da6df16::t_3e9b8ad883f08a 49,51
+  s_a49ac55da6df16::t_4ea568199afb34 50,53,55-59
+crates/springload-core/src/journal.rs
+  s_3f08ad2b3b34f7::t_da272448ec021f 157,166-167
+  s_3f08ad2b3b34f7::t_2bf784288f3d3b 4,8,30,32
+crates/springload-core/src/glossary.rs
+  s_3f08ad2b3b34f7::t_24e0151f680b91 5-7,9
+  s_3f08ad2b3b34f7::t_0c00c8660705d6 109-124,126,132-135,174-177,190,193
+apps/springload/src-tauri/src/commands/ai.rs
+  s_3f08ad2b3b34f7::t_199d3a2aaf3cda 9,22-23,25,39-40,42,56,64,70,78,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "8804e8df970d699c909fffa52eb4046eb85f7c7c",
+  "prompts": {},
+  "humans": {
+    "h_212141a2d9d4c8": {
+      "author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_3f08ad2b3b34f7": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_4474e50d-6991-42e9-945e-ab0b22860193",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    },
+    "s_a49ac55da6df16": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_dc4f7de7-c7d1-4250-906b-13ded19c5133",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    },
+    "s_d301be115b8ad7": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_592db61e-b409-460c-ad9e-a2f5011ece6f",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
