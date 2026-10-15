@@ -1,5 +1,4 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { motion, useReducedMotion } from "motion/react";
 import type { StepIndex, ToolId } from "../api/types";
 import KLineChart from "../chart/KLineChart";
 import { getZones, subscribeZones } from "../chart/zoneStore";
@@ -8,7 +7,6 @@ import { StepGate } from "../components/StepGate";
 import { Alert, AlertContent, AlertDescription, AlertIcon } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
 import { useSteps } from "../copy/GlossaryContext";
-import { EASE_OUT } from "../lib/ease";
 import { cn } from "../lib/utils";
 import Step1 from "./steps/Step1";
 import Step2 from "./steps/Step2";
@@ -86,7 +84,6 @@ export default function FlowPage() {
   const blockedCopy = blocked === null ? undefined : steps[blocked - 1];
 
   const zoneSnapshot = useSyncExternalStore(subscribeZones, getZones, getZones);
-  const reduceMotion = useReducedMotion() ?? false;
   const zoneCount =
     zoneSnapshot.code === flow.selected
       ? zoneSnapshot.zones.filter((zone) => zone.kind !== "avwap_start").length
@@ -133,19 +130,16 @@ export default function FlowPage() {
       ) : null}
 
       {triggered ? (
-        <motion.div
+        <div
           data-slot="extra"
-          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scaleY: 0.9 }}
-          animate={{ opacity: 1, y: 0, scaleY: 1 }}
-          transition={{ duration: 0.24, ease: EASE_OUT }}
-          className="flex flex-none origin-top flex-wrap items-center gap-x-3 gap-y-1 border-2 border-proof bg-proof px-3 py-1.5 text-paper"
+          className="extra-in flex flex-none origin-top flex-wrap items-center gap-x-3 gap-y-1 border-2 border-proof bg-proof px-3 py-1.5 text-paper"
         >
           <span className="font-display text-head font-bold tracking-[0.3em]">号外</span>
           <span className="text-body">
             {flow.signal?.trigger ? `分钟线触发于 ${flow.signal.trigger.ts.slice(11)}` : "分钟线已触发"}
           </span>
           <span className="ml-auto text-micro">可以进第 4 步算仓位</span>
-        </motion.div>
+        </div>
       ) : null}
 
       <div

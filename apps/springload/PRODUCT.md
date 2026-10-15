@@ -23,7 +23,8 @@ Windows 与 Linux 保留系统标题栏，不留天条，这条窄带只用来�
 
 - 前端：React 19.3 + Vite 7 + react-router-dom 7（HashRouter，桌面应用没有服务端路由）
 - 样式：Tailwind CSS v4，令牌写在 `src/index.css` 的 `@theme`，组件源码在 `src/components/ui`
-- 动效：motion，曲线统一走 `src/lib/ease.ts`
+- 动效：CSS 关键帧写在 `src/index.css`，曲线统一走 `--ease-press`；退场期间保持挂载用
+  `src/lib/hooks/use-presence.ts`
 - 图表：klinecharts 10（自绘 overlay，承载支撑区标注与拖动）
 - 后端：Rust + Tauri v2 命令，SQLite 存储，AI 走 rig-core
 
@@ -87,6 +88,6 @@ Windows 与 Linux 保留系统标题栏，不留天条，这条窄带只用来�
 - 所有交互控件有可访问名；步骤条是 `role="tablist"`，面板是 `role="tabpanel"` 并由
   步骤标题标注。
 - 弹窗走原生 `<dialog>` + `showModal()`：顶层堆叠、背景 inert、焦点圈闭由浏览器负责。
-- 尊重 `prefers-reduced-motion`：全局收敛动画时长，beUI 组件内部按 `useReducedMotion`
-  关闭位移与缩放。
+- 尊重 `prefers-reduced-motion`：全局把动画时长收敛到零，`useReducedMotion` 让没有动画
+  的地方也不再为动画多留一段时间。
 - 表格表头用 `scope="col"`；数字列用等宽数字对齐。

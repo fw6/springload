@@ -1,0 +1,90 @@
+# 发布：打 v* tag 触发，四个平台各自构建安装包，传进一个草稿 release 供人工过目。
+# 测试门槛在 ci.yml，这里只构建与上传。
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# tauri-action 要建 release、传资产，默认的只读 token 不够。
+permissions:
+  contents: write
+
+jobs:
+  # 安装包的文件名取的是 tauri.conf.json 里的版本号，与 tag 不一致会发出一批版本号
+  # 对不上的包，所以先在 tag 这一步挡住。
+  verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: 核对 tag 与 tauri.conf.json 的版本
+        run: |
+          version=$(node -p "require('./apps/springload/src-tauri/tauri.conf.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME 与 tauri.conf.json 的 $version 不一致" >&2
+            exit 1
+          fi
+
+  build:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # src-tauri 在 Linux 上要 webkit 系系统库
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      # pnpm 版本取自 package.json 的 packageManager；必须在 setup-node 之前（cache: pnpm 要用到它）
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      # macOS 上两个架构各建一次，另一个架构的 std 要显式装上。
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          # 与 ci.yml 同一代前缀，但 key 带上目标三元组：四个矩阵项在两台 macos
+          # 上跑，只按 job 名分的话它们会抢同一条缓存，先写的赢，另一个每次都从头编。
+          prefix-key: v1-rust
+          key: ${{ matrix.target }}
+          # crate 归档在仓库根内的 .pnpm/crates，根取仓库根会让 rust-cache 把依赖
+          # 当成工作区成员从 target 里删掉。根取 apps/springload、目标目录指回仓库根。
+          workspaces: apps/springload -> ../../target
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # 应用不在仓库根，指到它所在的目录，用工程里的 CLI 而不是全局装的。
+          projectPath: apps/springload
+          tauriScript: pnpm tauri
+          args: --target ${{ matrix.target }}
+          tagName: ${{ github.ref_name }}
+          releaseName: "蓄势 Springload v__VERSION__"
+          releaseDraft: true
+          prerelease: false
+          # 应用没有接 updater，不生成 latest.json。
+          uploadUpdaterJson: false

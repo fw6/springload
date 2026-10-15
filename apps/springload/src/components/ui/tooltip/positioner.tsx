@@ -1,19 +1,24 @@
 "use client";
 
-import { useIsPresent } from "motion/react";
 import { type CSSProperties, type ReactNode, type Ref, useCallback, useState } from "react";
 import { type TooltipSide, useTooltipPosition } from "./use-position";
 
 type PositionProps = Parameters<typeof useTooltipPosition>[0];
 
-/** Readiness lives with the mounted overlay, not a trigger ref's attach/detach cycle. */
+/**
+ * Readiness lives with the mounted overlay, not a trigger ref's attach/detach cycle.
+ *
+ * `present` is false while the overlay is only mounted to play its exit animation:
+ * it is already inert and no longer positioned against the anchor.
+ */
 export function TooltipPositioner({
   children,
+  present,
   ...position
 }: Omit<PositionProps, "open" | "onPosition"> & {
+  present: boolean;
   children: (ready: boolean, present: boolean, side: TooltipSide) => ReactNode;
 }) {
-  const present = useIsPresent();
   const [ready, setReady] = useState(false);
   const [side, setSide] = useState<TooltipSide>(position.side);
   const onPosition = useCallback((placed: TooltipSide) => {

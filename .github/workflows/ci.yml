@@ -1,4 +1,4 @@
-# 独立测试门槛：PR/push 触发，一次 pnpm install 之后跑 tsc + vitest + cargo test。
+# 独立测试门槛：PR/push 触发，一次 pnpm install 之后跑 tsc + vitest + 生产构建 + cargo test。
 # 发布走 release.yml（tag 触发），不在此重复。
 name: CI
 
@@ -42,4 +42,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm test
+      # tsc 与 vitest 都不走打包：别名、按需加载、CSS 关键帧这些只有真构建才验得到，
+      # 顺带把每个 chunk 的体积打在日志里。
+      - run: pnpm build
       - run: pnpm test:rust

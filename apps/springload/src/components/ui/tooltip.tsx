@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence } from "motion/react";
 import {
   type ComponentProps,
   type PointerEvent as ReactPointerEvent,
@@ -24,6 +23,7 @@ import { createPortal } from "react-dom";
 import { TooltipSurface } from "@/components/ui/tooltip-surface";
 import { useDismiss } from "@/lib/hooks/use-dismiss";
 import { useHoverGesture } from "@/lib/hooks/use-hover-gesture";
+import { usePresence } from "@/lib/hooks/use-presence";
 import { useTapGesture } from "@/lib/hooks/use-tap-gesture";
 import { cn } from "@/lib/utils";
 import { focusFromKeyboard, graceArea, inBox, inPolygon, watchModality } from "./tooltip/grace";
@@ -37,6 +37,9 @@ import {
 } from "./tooltip/use-position";
 
 export type { TooltipAlign, TooltipSide };
+
+/** 退场动画的时长，与 index.css 里 `.tooltip-out` 的时长一致。 */
+const TOOLTIP_EXIT_MS = 100;
 
 /* -------------------------------------------------------------------------- */
 /* Provider                                                                   */
@@ -570,6 +573,9 @@ export function TooltipContent({
   } = useTooltipContext("TooltipContent");
   const empty = isEmpty(children);
   const arrowRef = useRef<SVGSVGElement | null>(null);
+  const showing = open && !empty;
+  // 收起时还要挂 `TOOLTIP_EXIT_MS`，让 CSS 把退场动画放完。
+  const present = usePresence(showing, TOOLTIP_EXIT_MS);
 
   useLayoutEffect(() => {
     setEmpty(empty);
@@ -585,42 +591,41 @@ export function TooltipContent({
           {children}
         </span>
       ) : null}
-      <AnimatePresence>
-        {open && !empty ? (
-          <TooltipPositioner
-            key="tooltip"
-            anchor={anchor}
-            floatingRef={floatingRef}
-            arrowRef={arrow ? arrowRef : undefined}
-            anchorPoint={anchorPoint}
-            followCursor={followCursor}
-            side={side}
-            align={align}
-            sideOffset={sideOffset}
-            onDismiss={close}
-            pointer={pointer}
-          >
-            {(positioned, isPresent, placedSide) => (
-              <TooltipSurface
-                id={asLabel ? undefined : contentId}
-                aria-hidden={asLabel || undefined}
-                ready={positioned}
-                onPointerEnter={onContentEnter}
-                onPointerLeave={onContentLeave}
-                style={{ pointerEvents: isPresent && !followCursor ? "auto" : "none" }}
-                className={cn(
-                  "max-w-[min(20rem,calc(100vw-16px))] whitespace-normal break-words",
-                  arrow && "relative",
-                  className,
-                )}
-              >
-                {children}
-                {arrow ? <TooltipArrow ref={arrowRef} side={placedSide} /> : null}
-              </TooltipSurface>
-            )}
-          </TooltipPositioner>
-        ) : null}
-      </AnimatePresence>
+      {present ? (
+        <TooltipPositioner
+          present={showing}
+          anchor={anchor}
+          floatingRef={floatingRef}
+          arrowRef={arrow ? arrowRef : undefined}
+          anchorPoint={anchorPoint}
+          followCursor={followCursor}
+          side={side}
+          align={align}
+          sideOffset={sideOffset}
+          onDismiss={close}
+          pointer={pointer}
+        >
+          {(positioned, isPresent, placedSide) => (
+            <TooltipSurface
+              id={asLabel ? undefined : contentId}
+              aria-hidden={asLabel || undefined}
+              ready={positioned}
+              state={isPresent ? "open" : "closed"}
+              onPointerEnter={onContentEnter}
+              onPointerLeave={onContentLeave}
+              style={{ pointerEvents: isPresent && !followCursor ? "auto" : "none" }}
+              className={cn(
+                "max-w-[min(20rem,calc(100vw-16px))] whitespace-normal break-words",
+                arrow && "relative",
+                className,
+              )}
+            >
+              {children}
+              {arrow ? <TooltipArrow ref={arrowRef} side={placedSide} /> : null}
+            </TooltipSurface>
+          )}
+        </TooltipPositioner>
+      ) : null}
     </>,
     document.body,
   );

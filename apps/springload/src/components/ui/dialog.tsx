@@ -1,10 +1,11 @@
 import { X } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { EASE_OUT } from "../../lib/ease";
+import { usePresence } from "../../lib/hooks/use-presence";
+import { useReducedMotion } from "../../lib/hooks/use-reduced-motion";
 import { cn } from "../../lib/utils";
 
+/** 压印时长，与 index.css 里 `.dialog-in` / `.dialog-out` 的时长一致。 */
 const IMPRESS_MS = 260;
 
 export interface DialogProps {
@@ -46,23 +47,14 @@ export function DialogContent({
   className,
   children,
 }: DialogContentProps) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useReducedMotion();
   const [mounted, setMounted] = useState(false);
-  const [present, setPresent] = useState(open);
   const [dialog, setDialog] = useState<HTMLDialogElement | null>(null);
 
-  useEffect(() => setMounted(true), []);
+  // 关闭：面板留着放完收起动画再摘掉；要求减少动效时没有动画，直接摘。
+  const present = usePresence(open, reduce ? 0 : IMPRESS_MS);
 
-  // 打开：立刻挂上面板；关闭：先放完收起动画再摘掉，动画没跑完也由定时器兜底。
-  useEffect(() => {
-    if (open) {
-      setPresent(true);
-      return;
-    }
-    if (!present) return;
-    const timer = window.setTimeout(() => setPresent(false), reduce ? 0 : IMPRESS_MS);
-    return () => window.clearTimeout(timer);
-  }, [open, present, reduce]);
+  useEffect(() => setMounted(true), []);
 
   // 面板挂上之后进顶层。摘面板由 React 移除 <dialog> 完成，那时浏览器自己会退出顶层。
   useEffect(() => {
@@ -115,31 +107,26 @@ export function DialogContent({
       data-slot="dialog"
       className="m-auto w-[calc(100vw-2rem)] max-w-[30rem] border-0 bg-transparent p-0 text-ink backdrop:bg-ink/25"
     >
-      <AnimatePresence>
-        <motion.div
-          key="panel"
-          initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.965, y: 6 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.985, y: 3 }}
-          transition={{ duration: IMPRESS_MS / 1000, ease: EASE_OUT }}
-          className={cn(
-            "relative max-h-[85vh] overflow-auto border-2 border-ink bg-paper",
-            className,
-          )}
-        >
-          {children}
-            {showCloseButton ? (
-              <button
-                type="button"
-                aria-label={closeButtonLabel}
-                onClick={() => onOpenChange(false)}
-                className="absolute top-2.5 right-2.5 inline-flex size-7 items-center justify-center border border-rule-strong text-ink-soft transition-colors hover:border-ink hover:bg-ink hover:text-paper"
-              >
-                <X aria-hidden size={14} strokeWidth={2} />
-              </button>
-            ) : null}
-        </motion.div>
-      </AnimatePresence>
+      <div
+        data-state={open ? "open" : "closed"}
+        className={cn(
+          "relative max-h-[85vh] overflow-auto border-2 border-ink bg-paper",
+          open ? "dialog-in" : "dialog-out",
+          className,
+        )}
+      >
+        {children}
+        {showCloseButton ? (
+          <button
+            type="button"
+            aria-label={closeButtonLabel}
+            onClick={() => onOpenChange(false)}
+            className="absolute top-2.5 right-2.5 inline-flex size-7 items-center justify-center border border-rule-strong text-ink-soft transition-colors hover:border-ink hover:bg-ink hover:text-paper"
+          >
+            <X aria-hidden size={14} strokeWidth={2} />
+          </button>
+        ) : null}
+      </div>
     </dialog>,
     document.body,
   );
