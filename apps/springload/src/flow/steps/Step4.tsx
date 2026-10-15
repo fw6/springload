@@ -4,6 +4,7 @@ import { toMessage } from "../../api/invoke";
 import { planSave } from "../../api/plan";
 import { getSettings } from "../../api/settings";
 import { planCalc, type SizingResult } from "../../api/sizing";
+import { useCurrency } from "../../copy/MarketContext";
 import { AiCard } from "../../components/AiCard";
 import { StatGrid, StatTile } from "../../components/Panel";
 import { TermHint } from "../../components/TermHint";
@@ -12,10 +13,10 @@ import { StatefulButton } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import type { StepProps } from "../useFlow";
 
-/** 写死的示例面板：账户 100,000 元，买入价 20.00、止损价 19.50。 */
+/** 写死的示例面板：账户 100,000，买入价 20.00、止损价 19.50。 */
 const EXAMPLE = { entry: 20.0, stop: 19.5, account: 100_000, riskPct: 0.005 };
 
-/** 金额按元展示，两位小数。 */
+/** 金额按本市场货币展示，两位小数。 */
 function money(value: number): string {
   return value.toFixed(2);
 }
@@ -25,7 +26,8 @@ function pct(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
 
-/** 按 A 股整股取整算减仓股数：3R 与 5R 各卖 floor(股数 ÷ 3) 股，剩余跟随 9 日均线。 */
+/** 按整股取整算减仓股数：3R 与 5R 各卖 floor(股数 ÷ 3) 股，剩余跟随 9 日均线。
+ * 两个市场都按整股算：卖出申报不受 A 股一手 100 股的限制。 */
 export function reduceShares(shares: number): {
   shares3r: number;
   shares5r: number;
@@ -39,6 +41,7 @@ export function reduceShares(shares: number): {
 /** 第 4 版：输入买入价、止损价、账户金额与单笔风险比例，实时算出股数与目标位。 */
 export default function Step4({ flow }: StepProps) {
   const { sizing, setSizing } = flow;
+  const currency = useCurrency();
   const navigate = useNavigate();
   const [result, setResult] = useState<SizingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -105,32 +108,35 @@ export default function Step4({ flow }: StepProps) {
     };
   }, [sizing]);
 
+  /** 取整口径的说法，只认后端给的 lotSize：A 股是一手 100 股，美股按整股。 */
+  const lotRounding = (size: number) => (size === 1 ? "整股" : `${size} 股的整数倍`);
   const reduce = result === null ? null : reduceShares(result.shares);
   const overThreshold = result !== null && result.stopDistance > warnDistance;
 
   return (
     <>
       <p className="text-body leading-relaxed text-ink-soft">
-        <TermHint termKey="r" />：买入价减止损价。股数按 A 股一手 100 股向下取整。
+        <TermHint termKey="r" />：买入价减止损价。股数按最小申报单位向下取整，单位由
+        当前市场决定。
       </p>
 
       <div className="grid grid-cols-2 gap-3">
         <Input
-          label="买入价（元/股）"
+          label={`买入价（${currency}/股）`}
           type="number"
           step="0.01"
           value={String(sizing.entry)}
           onChange={(value) => setSizing({ ...sizing, entry: Number(value) })}
         />
         <Input
-          label="止损价（元/股）"
+          label={`止损价（${currency}/股）`}
           type="number"
           step="0.01"
           value={String(sizing.stop)}
           onChange={(value) => setSizing({ ...sizing, stop: Number(value) })}
         />
         <Input
-          label="账户金额（元）"
+          label={`账户金额（${currency}）`}
           type="number"
           value={String(sizing.account)}
           onChange={(value) => setSizing({ ...sizing, account: Number(value) })}
@@ -186,7 +192,8 @@ export default function Step4({ flow }: StepProps) {
               <b className="text-ink">{money(result.maxLoss)}</b>
             </span>
             <span>
-              可买股数 = {money(result.maxLoss)} ÷ {money(result.perR)} 后向下取整到 100 股 ={" "}
+              可买股数 = {money(result.maxLoss)} ÷ {money(result.perR)} 后向下取整到{" "}
+              {lotRounding(result.lotSize)} ={" "}
               <b className="text-ink">{result.shares} 股</b>
             </span>
             <span>
@@ -227,7 +234,8 @@ export default function Step4({ flow }: StepProps) {
               <AlertIcon />
               <AlertContent>
                 <AlertDescription>
-                  股数算出来是 0：最大可亏金额买不到一手 100 股。可能是止损位太近，也可能是风险比例太小。
+                  股数算出来是 0：最大可亏金额买不到一个最小申报单位（
+                  {lotRounding(result.lotSize)}）。可能是止损位太近，也可能是风险比例太小。
                 </AlertDescription>
               </AlertContent>
             </Alert>
@@ -240,7 +248,7 @@ export default function Step4({ flow }: StepProps) {
           <AlertContent>
             <AlertDescription>
               减仓安排：3R 卖 {reduce.shares3r} 股、5R 再卖 {reduce.shares5r} 股，剩余{" "}
-              {reduce.remaining} 股跟随 9 日均线。按整股取整，不按手取整。
+              {reduce.remaining} 股跟随 9 日均线。卖出按整股取整，不受买入申报单位的限制。
             </AlertDescription>
           </AlertContent>
         </Alert>
@@ -258,7 +266,7 @@ export default function Step4({ flow }: StepProps) {
             生成计划卡
           </StatefulButton>
           <span className="text-note text-ink-soft">
-            未用满的风险金额 {money(result.unusedRisk)} 元
+            未用满的风险金额 {money(result.unusedRisk)} {currency}
           </span>
         </div>
       ) : null}
@@ -275,8 +283,10 @@ export default function Step4({ flow }: StepProps) {
         示例面板（写死数字，可用来对照自己的结果）
       </div>
       <div className="tabular text-note leading-relaxed text-ink-soft">
-        账户 {EXAMPLE.account} 元，买入价 {money(EXAMPLE.entry)}、止损价 {money(EXAMPLE.stop)}
-        → 每股风险 0.50、最大可亏 500.00、可买 1000 股、投入 20000.00 元（占 20.00%）、止损距离
+        账户 {EXAMPLE.account} {currency}，买入价 {money(EXAMPLE.entry)}、止损价{" "}
+        {money(EXAMPLE.stop)}
+        → 每股风险 0.50、最大可亏 500.00、可买 1000 股、投入 20000.00 {currency}（占
+        20.00%）、止损距离
         2.50%、3R 21.50、5R 22.50
       </div>
 

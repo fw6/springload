@@ -9,6 +9,7 @@ import {
 } from "react";
 import { confirmFirstRun, getSettings, updateSettings } from "../api/settings";
 import { Modal } from "../components/Modal";
+import { useMarket } from "./MarketContext";
 import { firstRunNotes } from "./riskNotes";
 
 /** 小白模式开关的全局状态。 */
@@ -36,7 +37,7 @@ export function useBeginnerMode(): BeginnerModeValue {
 
 /**
  * 风险提示弹窗：逐条列出需求文档第 8 章的五条，底部一个确认按钮。
- * 首次启动确认与设置页的重看入口共用这一个弹窗。
+ * 首次启动确认与设置页的重看入口共用这一个弹窗；交易制度那一条按当前市场取。
  */
 export function RiskNotesDialog({
   open,
@@ -51,6 +52,8 @@ export function RiskNotesDialog({
   busy?: boolean;
   error?: string | null;
 }) {
+  const { market } = useMarket();
+
   return (
     <Modal
       open={open}
@@ -59,7 +62,7 @@ export function RiskNotesDialog({
       confirm={{ label: busy ? "保存中…" : confirmLabel, onClick: onConfirm, disabled: busy }}
     >
       <ol className="list-decimal space-y-2 pl-5">
-        {firstRunNotes.map((note) => (
+        {firstRunNotes(market).map((note) => (
           <li key={note}>{note}</li>
         ))}
       </ol>

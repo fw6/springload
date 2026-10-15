@@ -1,7 +1,7 @@
 //! `bar` 表（前复权日线）的读写。
 
 use crate::error::Result;
-use rusqlite::{params, Connection, Row};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 
 /// 一根前复权日线。
 ///
@@ -89,6 +89,18 @@ pub fn latest_date(conn: &Connection, code: &str) -> Result<Option<String>> {
         )
         .unwrap_or(None);
     Ok(date)
+}
+
+/// 某一天的前复权收盘价；那天没有记录时返回 `None`。
+pub fn close_at(conn: &Connection, code: &str, date: &str) -> Result<Option<f64>> {
+    let close = conn
+        .query_row(
+            "SELECT close FROM bar WHERE code = ?1 AND date = ?2",
+            params![code, date],
+            |row| row.get::<_, f64>(0),
+        )
+        .optional()?;
+    Ok(close)
 }
 
 /// 全部日线行数。

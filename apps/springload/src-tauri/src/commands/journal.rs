@@ -6,6 +6,7 @@ use crate::state::AppState;
 use springload_core::ai::{self, AiResult, ChatClient, Explanation, Scope};
 use springload_core::journal::{self, JournalView, ManualEntry};
 use springload_core::storage::trade_log::{self, TradeLogEntry};
+use springload_core::market::Market;
 use springload_core::storage::Database;
 use std::sync::Arc;
 use tauri::State;
@@ -17,7 +18,9 @@ const JOURNAL_CODE: &str = "";
 #[tauri::command]
 pub fn journal_get(state: State<'_, AppState>) -> Result<JournalView, String> {
     let settings = state.settings_get().map_err(|error| error.to_string())?;
-    journal::view(state.db(), settings.fee_model_enabled, settings.commission_rate)
+    let market = state.market();
+    let current = settings.current();
+    journal::view(&state.db(), market, settings.fee_model_enabled, current.commission_rate)
         .map_err(|error| error.to_string())
 }
 
@@ -45,16 +48,19 @@ pub fn journal_export_csv(state: State<'_, AppState>, path: String) -> Result<()
 /// 要等模型返回，可能十几秒，挪到线程池里跑，别占住主线程。
 #[tauri::command]
 pub async fn journal_review(state: State<'_, AppState>) -> Result<Explanation, String> {
-    let db = state.db().clone();
-    tauri::async_runtime::spawn_blocking(move || journal_review_with(&db, ai::default_client))
-        .await
-        .map_err(|error| error.to_string())?
+    let db = state.db();
+    let market = state.market();
+    tauri::async_runtime::spawn_blocking(move || {
+        journal_review_with(&db, market, ai::default_client)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /// `journal_review` 的接线主体：模型客户端由调用方给出，便于测试注入。
-pub fn journal_review_with<F>(db: &Database, client: F) -> Result<Explanation, String>
+pub fn journal_review_with<F>(db: &Database, market: Market, client: F) -> Result<Explanation, String>
 where
     F: FnOnce() -> AiResult<Arc<dyn ChatClient>>,
 {
-    ai::explain(db, client, JOURNAL_CODE, Scope::Journal).map_err(|error| error.to_string())
+    ai::explain(db, client, JOURNAL_CODE, Scope::Journal, market).map_err(|error| error.to_string())
 }

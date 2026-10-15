@@ -93,7 +93,7 @@ fn settings_round_trip_covers_page_fields() {
             json!({ "patch": {
                 "riskPct": 0.008,
                 "stopDistanceWarn": 0.04,
-                "liquidityThreshold": 5e7,
+                "cn": { "liquidityThreshold": 5e7, "commissionRate": 0.0003 },
                 "chg6mThreshold": 0.35,
                 "rankBand": [0.15, 0.25],
                 "convergenceThreshold": 0.20,
@@ -102,17 +102,18 @@ fn settings_round_trip_covers_page_fields() {
         )
         .expect("settings_update 成功");
     assert_eq!(updated["riskPct"], 0.008);
-    assert_eq!(updated["liquidityThreshold"], 5e7);
+    assert_eq!(updated["cn"]["liquidityThreshold"], 5e7);
     assert_eq!(updated["rankBand"], json!([0.15, 0.25]));
     assert_eq!(updated["beginnerMode"], false);
     // 未给出的字段保持原值。
-    assert_eq!(updated["commissionRate"], 0.00025);
+    assert_eq!(updated["cn"]["commissionRate"], 0.0003);
+    assert_eq!(updated["us"]["commissionRate"], 0.0);
 
     // 重新读到的就是写下去的值。
     let again = harness.invoke("settings_get", Value::Null).expect("settings_get 成功");
     assert_eq!(again["riskPct"], 0.008);
     assert_eq!(again["stopDistanceWarn"], 0.04);
-    assert_eq!(again["liquidityThreshold"], 5e7);
+    assert_eq!(again["cn"]["liquidityThreshold"], 5e7);
     assert_eq!(again["chg6mThreshold"], 0.35);
     assert_eq!(again["rankBand"], json!([0.15, 0.25]));
     assert_eq!(again["convergenceThreshold"], 0.20);

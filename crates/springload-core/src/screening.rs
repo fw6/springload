@@ -2,6 +2,8 @@
 //!
 //! 四条同时满足才进观察名单；未入选的股票保留每条判定的取值，界面据此写出差哪一条。
 //! 判定用的日线先剔除没有成交的 bar（[`crate::indicators::traded_bars`]）。
+//!
+//! 判定条件本身与市场无关，只有日均成交额下限随市场变：A 股按元、美股按美元。
 
 use crate::config::Settings;
 use crate::error::Result;
@@ -10,12 +12,10 @@ use crate::market::Bar;
 use crate::storage::setting;
 use crate::storage::watchlist::{self, WatchlistItem};
 use crate::storage::Database;
-use chrono::{Local, NaiveDate, NaiveTime};
+use chrono::{NaiveDate, NaiveTime};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use std::path::PathBuf;
-use std::sync::{LazyLock, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 /// 近 1 个月的交易日数。
 pub const CHANGE_1M: usize = 21;
@@ -40,18 +40,18 @@ pub struct ScreenParams {
     pub rank_band: (f64, f64),
     /// 近 20 日极差阈值。
     pub convergence_threshold: f64,
-    /// 日均成交额下限（元）。
+    /// 日均成交额下限，单位是当前市场的货币。
     pub liquidity_threshold: f64,
 }
 
 impl ScreenParams {
-    /// 从配置取筛选参数。
+    /// 从配置取筛选参数。成交额下限取当前市场那一份。
     pub fn from_settings(settings: &Settings) -> Self {
         Self {
             chg_6m_threshold: settings.chg_6m_threshold,
             rank_band: settings.rank_band,
             convergence_threshold: settings.convergence_threshold,
-            liquidity_threshold: settings.liquidity_threshold,
+            liquidity_threshold: settings.current().liquidity_threshold,
         }
     }
 }
@@ -323,36 +323,16 @@ pub fn last_report(conn: &rusqlite::Connection) -> Result<Option<ScreenReport>> 
     Ok(Some(serde_json::from_str(&text)?))
 }
 
-/// 收盘时间。
-pub fn close_time() -> NaiveTime {
-    NaiveTime::from_hms_opt(15, 0, 0).expect("15:00 是合法时刻")
-}
-
-/// 是否该在收盘后自动跑一次筛选：过了收盘时间，且今天还没跑过。
-pub fn should_run_auto_screen(now: NaiveTime, today: NaiveDate, last_run: Option<NaiveDate>) -> bool {
-    now >= close_time() && last_run != Some(today)
-}
-
-static LAST_AUTO_SCREEN: LazyLock<Mutex<Option<NaiveDate>>> = LazyLock::new(|| Mutex::new(None));
-
-/// 起一个后台线程，收盘后自动跑一次筛选。
+/// 是否该在收盘后自动跑一次筛选：过了本市场的收盘时间，且今天还没跑过。
 ///
-/// 筛选参数每次运行时从配置文件重新读，改过阈值不用重启应用。
-pub fn spawn_daily_scheduler(db: Database, config_path: PathBuf) {
-    std::thread::spawn(move || loop {
-        let now = Local::now();
-        let today = now.date_naive();
-        let last_run = *LAST_AUTO_SCREEN.lock().expect("自动筛选锁");
-        if should_run_auto_screen(now.time(), today, last_run) {
-            if let Ok(load) = crate::config::load_settings(&config_path) {
-                let params = ScreenParams::from_settings(&load.settings);
-                if run_screen(&db, &params).is_ok() {
-                    *LAST_AUTO_SCREEN.lock().expect("自动筛选锁") = Some(today);
-                }
-            }
-        }
-        std::thread::sleep(Duration::from_secs(60));
-    });
+/// `now` 与 `today` 都取本市场的当地时间，`close` 是本市场的收盘时刻。
+pub fn should_run_auto_screen(
+    now: NaiveTime,
+    close: NaiveTime,
+    today: NaiveDate,
+    last_run: Option<NaiveDate>,
+) -> bool {
+    now >= close && last_run != Some(today)
 }
 
 /// 近 `window` 日日均成交额。
@@ -668,20 +648,40 @@ mod tests {
     #[test]
     fn auto_screen_runs_after_close_once_a_day() {
         let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
+        let cn_close = crate::market::Market::Cn.close_time();
+        let us_close = crate::market::Market::Us.close_time();
+        assert_eq!(cn_close.to_string(), "15:00:00");
+        assert_eq!(us_close.to_string(), "16:00:00");
         assert!(!should_run_auto_screen(
             NaiveTime::from_hms_opt(14, 59, 0).unwrap(),
+            cn_close,
             today,
             None
         ));
         assert!(should_run_auto_screen(
             NaiveTime::from_hms_opt(15, 0, 0).unwrap(),
+            cn_close,
             today,
             None
         ));
         assert!(!should_run_auto_screen(
             NaiveTime::from_hms_opt(15, 30, 0).unwrap(),
+            cn_close,
             today,
             Some(today)
+        ));
+        // 美股按美东 16:00 收盘。
+        assert!(!should_run_auto_screen(
+            NaiveTime::from_hms_opt(15, 30, 0).unwrap(),
+            us_close,
+            today,
+            None
+        ));
+        assert!(should_run_auto_screen(
+            NaiveTime::from_hms_opt(16, 0, 0).unwrap(),
+            us_close,
+            today,
+            None
         ));
     }
 

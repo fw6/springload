@@ -1,4 +1,5 @@
-//! 集成测试直接调用四个命令，断言输入与输出，以及首次启动建好的目录与文件。
+//! 集成测试直接调用应用信息、术语、设置与市场切换这几个命令，断言输入与输出，
+//! 以及首次启动建好的目录与文件。
 
 use serde_json::{json, Value};
 use springload_lib::commands;
@@ -26,6 +27,7 @@ impl Harness {
                 commands::app::glossary,
                 commands::app::settings_get,
                 commands::app::settings_update,
+                commands::app::market_set,
             ])
             .build(mock_context(noop_assets()))
             .expect("构建测试应用");
@@ -66,7 +68,7 @@ fn first_launch_creates_data_dir_database_and_config() {
     AppState::from_data_dir(data_dir.clone()).expect("首次装配");
 
     assert!(data_dir.is_dir(), "首次启动应建好数据目录");
-    assert!(data_dir.join("springload.db").is_file(), "应建好 SQLite 库");
+    assert!(data_dir.join("springload.db").is_file(), "应建好 A 股 SQLite 库");
     assert!(
         data_dir.join("springload.config.json").is_file(),
         "缺失的配置文件应生成默认值"
@@ -83,8 +85,67 @@ fn app_info_reports_version_source_and_sync_time() {
 
     let info = harness.invoke("app_info", Value::Null).expect("app_info 成功");
     assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
-    assert_eq!(info["dataSource"], "东方财富 · 前复权");
+    assert_eq!(info["market"], "cn");
+    assert_eq!(info["marketLabel"], "A 股");
+    assert_eq!(info["currency"], "元");
+    assert_eq!(info["tPlusOne"], true);
+    assert_eq!(info["dataSource"], "通达信 · 前复权");
     assert!(info["lastSyncAt"].is_null(), "还没有同步记录时最近同步时间为 null");
+}
+
+/// 切换市场后整个应用换一套：库文件、数据源、货币与四步文案。
+#[test]
+fn market_set_switches_the_whole_workspace() {
+    let dir = tempfile::tempdir().unwrap();
+    let harness = Harness::new(dir.path());
+
+    let switched = harness
+        .invoke("market_set", json!({ "market": "us" }))
+        .expect("切到美股");
+    assert_eq!(switched["market"], "us");
+    assert_eq!(switched["us"]["liquidityThreshold"], 2e7);
+    assert_eq!(switched["us"]["commissionRate"], 0.0);
+    // A 股那一份参数留着不动。
+    assert_eq!(switched["cn"]["liquidityThreshold"], 1e8);
+
+    let info = harness.invoke("app_info", Value::Null).expect("app_info 成功");
+    assert_eq!(info["market"], "us");
+    assert_eq!(info["marketLabel"], "美股");
+    assert_eq!(info["currency"], "美元");
+    assert_eq!(info["tPlusOne"], false);
+    assert_eq!(info["dataSource"], "Yahoo Finance · 前复权");
+
+    // 美股用另一个库文件，切换时按需建好。
+    assert!(
+        dir.path().join("springload.us.db").is_file(),
+        "切到美股应建好美股库"
+    );
+
+    // 四步文案跟着换：股票池范围与买入申报单位都是美股的说法。
+    let g = harness.invoke("glossary", Value::Null).expect("glossary 成功");
+    assert!(g["steps"][0]["oneLine"]
+        .as_str()
+        .unwrap()
+        .contains("纳斯达克"));
+    assert!(g["steps"][3]["detail"]
+        .as_str()
+        .unwrap()
+        .contains("美股按整股交易"));
+
+    // 切回 A 股：配置里记的是 cn，文案与数据源也回到 A 股那一套。
+    let back = harness
+        .invoke("market_set", json!({ "market": "cn" }))
+        .expect("切回 A 股");
+    assert_eq!(back["market"], "cn");
+    let info = harness.invoke("app_info", Value::Null).expect("app_info 成功");
+    assert_eq!(info["dataSource"], "通达信 · 前复权");
+    let g = harness.invoke("glossary", Value::Null).expect("glossary 成功");
+    assert!(g["steps"][0]["oneLine"].as_str().unwrap().contains("沪深主板"));
+
+    // 未知市场被拒绝。
+    assert!(harness
+        .invoke("market_set", json!({ "market": "hk" }))
+        .is_err());
 }
 
 #[test]
@@ -109,17 +170,21 @@ fn settings_get_returns_contract_defaults() {
     let harness = Harness::new(dir.path());
 
     let s = harness.invoke("settings_get", Value::Null).expect("settings_get 成功");
+    assert_eq!(s["market"], "cn");
     assert_eq!(s["riskPct"], 0.005);
     assert_eq!(s["stopDistanceWarn"], 0.05);
-    assert_eq!(s["liquidityThreshold"], 1e8);
     assert_eq!(s["chg6mThreshold"], 0.30);
     assert_eq!(s["rankBand"], json!([0.20, 0.30]));
     assert_eq!(s["convergenceThreshold"], 0.25);
     assert_eq!(s["beginnerMode"], true);
     assert_eq!(s["autostart"], false);
     assert_eq!(s["feeModelEnabled"], false);
-    assert_eq!(s["commissionRate"], 0.00025);
     assert_eq!(s["firstRunConfirmed"], false);
+    // 随市场变化的两项按市场各存一份。
+    assert_eq!(s["cn"]["liquidityThreshold"], 1e8);
+    assert_eq!(s["cn"]["commissionRate"], 0.00025);
+    assert_eq!(s["us"]["liquidityThreshold"], 2e7);
+    assert_eq!(s["us"]["commissionRate"], 0.0);
 }
 
 #[test]

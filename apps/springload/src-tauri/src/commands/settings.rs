@@ -39,7 +39,7 @@ pub async fn import_bars_csv(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<ImportReport, String> {
-    let db = state.db().clone();
+    let db = state.db();
     tauri::async_runtime::spawn_blocking(move || {
         let text =
             std::fs::read_to_string(&path).map_err(|e| format!("读取文件 {path} 失败：{e}"))?;

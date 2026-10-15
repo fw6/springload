@@ -17,7 +17,7 @@ pub fn plan_card(state: State<'_, AppState>, id: String) -> Result<PlanCard, Str
 #[tauri::command]
 pub fn plan_save(state: State<'_, AppState>, plan: PlanInput) -> Result<TradePlan, String> {
     let conn = state.db().conn().map_err(|error| error.to_string())?;
-    plan::save(&conn, &plan).map_err(|error| error.to_string())
+    plan::save(&conn, &plan, state.market()).map_err(|error| error.to_string())
 }
 
 /// 读一条计划。

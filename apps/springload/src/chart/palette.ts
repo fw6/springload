@@ -2,14 +2,22 @@
  * 图版用色。
  *
  * K 线图把颜色作为数值传给 klinecharts，读不到 Tailwind 的工具类，所以这一组
- * 颜色单独放在这里，作为唯一来源。红涨绿跌遵循 A 股习惯，不随版式切换。
- * 网格与坐标线用油墨的低透明度，让图版像是印在纸上。
+ * 颜色单独放在这里，作为唯一来源。网格与坐标线用油墨的低透明度，让图版像是印在
+ * 纸上。
+ *
+ * 涨跌两色按市场取：A 股红涨绿跌，美股绿涨红跌，与各自市场的习惯一致。
  */
+import type { Market } from "../api/app";
+
+/** 红与绿。 */
+const RED = "#b8232a";
+const GREEN = "#1c6b4a";
+
 export const CHART_COLORS = {
-  /** 上涨：红。 */
-  up: "#b8232a",
-  /** 下跌：绿。 */
-  down: "#1c6b4a",
+  /** 上涨。 */
+  up: RED,
+  /** 下跌。 */
+  down: GREEN,
   /** 网格线。 */
   grid: "rgba(22, 22, 26, 0.08)",
   /** 坐标轴文字。 */
@@ -29,3 +37,17 @@ export const CHART_COLORS = {
   /** 缺口填充。 */
   referenceFill: "rgba(138, 90, 18, 0.14)",
 } as const;
+
+/** 图版用色的形状。 */
+export type ChartColors = { [K in keyof typeof CHART_COLORS]: string };
+
+/** 某个市场下的图版用色。 */
+export function chartColors(market: Market): ChartColors {
+  if (market !== "us") return CHART_COLORS;
+  return { ...CHART_COLORS, up: GREEN, down: RED };
+}
+
+/** 涨跌约定的说法，报尾那一行用。与上面的配色同一处定义，不会各说各的。 */
+export function upDownLabel(market: Market): string {
+  return market === "us" ? "绿涨红跌。" : "红涨绿跌。";
+}

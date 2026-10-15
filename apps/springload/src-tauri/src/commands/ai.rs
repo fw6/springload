@@ -6,6 +6,7 @@
 
 use crate::state::AppState;
 use springload_core::ai::{self, AiResult, ChatClient, Explanation, Scope};
+use springload_core::market::Market;
 use springload_core::storage::Database;
 use std::sync::Arc;
 use tauri::State;
@@ -18,9 +19,10 @@ pub async fn explain(
     step: u8,
 ) -> Result<Explanation, String> {
     let scope = scope_of(step)?;
-    let db = state.db().clone();
+    let db = state.db();
+    let market = state.market();
     tauri::async_runtime::spawn_blocking(move || {
-        explain_with(&db, &code, scope, ai::default_client)
+        explain_with(&db, &code, scope, market, ai::default_client)
     })
     .await
     .map_err(|error| error.to_string())?
@@ -34,9 +36,10 @@ pub async fn explain_retry(
     step: u8,
 ) -> Result<Explanation, String> {
     let scope = scope_of(step)?;
-    let db = state.db().clone();
+    let db = state.db();
+    let market = state.market();
     tauri::async_runtime::spawn_blocking(move || {
-        explain_retry_with(&db, &code, scope, ai::default_client)
+        explain_retry_with(&db, &code, scope, market, ai::default_client)
     })
     .await
     .map_err(|error| error.to_string())?
@@ -50,7 +53,7 @@ pub fn explain_invalidate(
     step: u8,
 ) -> Result<(), String> {
     let scope = scope_of(step)?;
-    explain_invalidate_with(state.db(), &code, scope)
+    explain_invalidate_with(&state.db(), &code, scope)
 }
 
 /// `explain` 的接线主体：模型客户端由调用方给出，便于测试注入。
@@ -58,12 +61,13 @@ pub fn explain_with<F>(
     db: &Database,
     code: &str,
     scope: Scope,
+    market: Market,
     client: F,
 ) -> Result<Explanation, String>
 where
     F: FnOnce() -> AiResult<Arc<dyn ChatClient>>,
 {
-    ai::explain(db, client, code, scope).map_err(|error| error.to_string())
+    ai::explain(db, client, code, scope, market).map_err(|error| error.to_string())
 }
 
 /// `explain_retry` 的接线主体。
@@ -71,12 +75,13 @@ pub fn explain_retry_with<F>(
     db: &Database,
     code: &str,
     scope: Scope,
+    market: Market,
     client: F,
 ) -> Result<Explanation, String>
 where
     F: FnOnce() -> AiResult<Arc<dyn ChatClient>>,
 {
-    ai::explain_retry(db, client, code, scope).map_err(|error| error.to_string())
+    ai::explain_retry(db, client, code, scope, market).map_err(|error| error.to_string())
 }
 
 /// `explain_invalidate` 的接线主体。

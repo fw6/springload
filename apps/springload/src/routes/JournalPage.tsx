@@ -17,7 +17,8 @@ import { Input } from "../components/ui/input";
 import { Stamp } from "../components/ui/stamp";
 import { Typesetting } from "../components/ui/typesetting";
 import { useBeginnerMode } from "../copy/BeginnerModeContext";
-import { riskNotes } from "../copy/riskNotes";
+import { useCurrency, useMarket } from "../copy/MarketContext";
+import { feeItems, riskNotes } from "../copy/riskNotes";
 
 /** 统计口径的固定标注，与 Rust 侧一致。 */
 export const STATS_NOTE = "未计入交易成本与滑点";
@@ -46,6 +47,8 @@ const BLANK: ManualEntry = {
 
 /** 交易日志：记录表、统计摘要、手动补录、CSV 导出与 AI 复盘。 */
 export default function JournalPage() {
+  const currency = useCurrency();
+  const { market } = useMarket();
   const [view, setView] = useState<JournalView | null>(null);
   const [form, setForm] = useState<ManualEntry>(BLANK);
   const [filled, setFilled] = useState(false);
@@ -156,8 +159,8 @@ export default function JournalPage() {
             <AlertDescription>
               统计口径：{STATS_NOTE}。
               {feeOn
-                ? `已逐笔扣减费用合计 ${stats === null ? "—" : stats.totalFees.toFixed(2)} 元。`
-                : "可在设置页打开费用模型，打开后逐笔扣减印花税、过户费、经手费、证管费与佣金。"}
+                ? `已逐笔扣减费用合计 ${stats === null ? "—" : stats.totalFees.toFixed(2)} ${currency}。`
+                : `可在设置页打开费用模型，打开后逐笔扣减${feeItems(market)}。`}
             </AlertDescription>
           </AlertContent>
         </Alert>

@@ -6,6 +6,7 @@ import {
   type StaleStock,
 } from "../api/adjustment";
 import { toMessage } from "../api/invoke";
+import { useMarket } from "../copy/MarketContext";
 import { Button, StatefulButton } from "./ui/button";
 
 /**
@@ -13,8 +14,13 @@ import { Button, StatefulButton } from "./ui/button";
  *
  * 除权除息之后，除权日之前的历史会被整体改写；这一栏调用 `corporate_actions_stale`
  * 拿到需要重算的股票，点「重新同步」调用 `resync_adjusted` 重算并刷新列表。
+ *
+ * 只有 A 股需要这一栏：通达信给的是不复权价，本地按除权除息事件换算；美股的行情源
+ * 直接给复权价，没有事件可比对，所以这一栏在美股下说明它用不上。两个市场的价格基准
+ * 变化回补时都会自己发现并整段重算，这一栏留着手工核查。
  */
 export function AdjustmentPanel() {
+  const { market } = useMarket();
   const [stale, setStale] = useState<StaleStock[] | null>(null);
   const [report, setReport] = useState<ResyncReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,13 +66,18 @@ export function AdjustmentPanel() {
           size="sm"
           variant="ghost"
           onClick={() => check()}
-          disabled={busy}
+          disabled={busy || market === "us"}
         >
           {busy ? "检查中…" : "检查"}
         </Button>
       </div>
 
-      {stale === null ? (
+      {market === "us" ? (
+        <p className="text-note text-ink-soft">
+          美股行情源直接给前复权价，没有除权除息事件可比对；价格基准变化由回补时自动
+          发现并整段重算。
+        </p>
+      ) : stale === null ? (
         <p className="text-note text-ink-soft">正在检查复权…</p>
       ) : count === 0 ? (
         <p className="text-note text-ink-soft">没有需要重算的股票。</p>

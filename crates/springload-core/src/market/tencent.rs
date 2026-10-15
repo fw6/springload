@@ -2,9 +2,13 @@
 //!
 //! 事实来源见 `docs/research/quote-api-spec.md` 第 3、4 节。腾讯对不存在的代码整条
 //! 省略，响应必须按返回的代码字段重新配对，不按下标取值。
+//!
+//! A 股与美股的快照字段位置基本相同，三处不同：成交量 A 股是手、美股是股；成交额
+//! A 股要从第 35 项里切、美股直接在第 37 项；代码字段 A 股是六位数字、美股带交易所
+//! 后缀（`AAPL.OQ`）。
 
 use super::url_budget::Budget;
-use super::{parse_f64, yyyymmddhhmmss_to_datetime, Bar, Snapshot, TradeStatus};
+use super::{parse_f64, yyyymmddhhmmss_to_datetime, Bar, Market, Snapshot, TradeStatus};
 use crate::error::{CoreError, Result};
 use serde_json::Value;
 
@@ -35,22 +39,23 @@ pub const BATCH_BUDGET_HTTP2: Budget = Budget {
     max_codes: MAX_CODES,
 };
 
-/// 代码前缀：上海 `sh`、深圳 `sz`、北京 `bj`。
-pub fn prefix(code: &str) -> &'static str {
-    if code.starts_with("920") || code.starts_with('4') || code.starts_with('8') {
-        "bj"
-    } else if code.starts_with('6') || code.starts_with('9') {
-        "sh"
-    } else {
-        "sz"
+/// 代码前缀：A 股上海 `sh`、深圳 `sz`、北京 `bj`；美股统一 `us`。
+pub fn prefix(code: &str, market: Market) -> &'static str {
+    match market {
+        Market::Us => "us",
+        Market::Cn if code.starts_with("920") || code.starts_with('4') || code.starts_with('8') => {
+            "bj"
+        }
+        Market::Cn if code.starts_with('6') || code.starts_with('9') => "sh",
+        Market::Cn => "sz",
     }
 }
 
 /// 快照请求的 URL。
-pub fn snapshot_url(codes: &[String]) -> String {
+pub fn snapshot_url(codes: &[String], market: Market) -> String {
     let joined = codes
         .iter()
-        .map(|code| format!("{}{}", prefix(code), code))
+        .map(|code| format!("{}{}", prefix(code, market), code))
         .collect::<Vec<_>>()
         .join(",");
     format!("{SNAPSHOT_ENDPOINT}{joined}")
@@ -59,7 +64,7 @@ pub fn snapshot_url(codes: &[String]) -> String {
 /// 按 URL 长度与代码数上限把一批代码切成若干批。
 ///
 /// 默认走 HTTP/1.1 客户端，因此用 [`BATCH_BUDGET_HTTP1`]；改用 HTTP/2 时传
-/// [`BATCH_BUDGET_HTTP2`]。
+/// [`BATCH_BUDGET_HTTP2`]。两个市场的代码前缀都是两个字符，切分规则不分市场。
 pub fn snapshot_batches(codes: &[String]) -> Vec<Vec<String>> {
     BATCH_BUDGET_HTTP1.batches(codes)
 }
@@ -67,7 +72,7 @@ pub fn snapshot_batches(codes: &[String]) -> Vec<Vec<String>> {
 /// 解析快照响应。响应体应先按 GBK 解码。
 ///
 /// 不存在的代码不会出现在响应里；全部查不到时返回 `v_pv_none_match="1";`。
-pub fn parse_snapshots(body: &str) -> Result<Vec<Snapshot>> {
+pub fn parse_snapshots(body: &str, market: Market) -> Result<Vec<Snapshot>> {
     if body.trim() == "too many codes" {
         return Err(CoreError::InvalidData(
             "腾讯快照一次请求的代码数超过 900".to_string(),
@@ -101,27 +106,59 @@ pub fn parse_snapshots(body: &str) -> Result<Vec<Snapshot>> {
                 fields.len()
             )));
         }
-        out.push(Snapshot {
-            // 第 2 项是代码；按它配对，不按下标。
-            code: fields[2].trim().to_string(),
-            name: fields[1].trim().to_string(),
-            last: parse_f64("最新价", fields[3])?,
-            prev_close: parse_f64("昨收", fields[4])?,
-            open: parse_f64("今开", fields[5])?,
-            high: parse_f64("最高", fields[33])?,
-            low: parse_f64("最低", fields[34])?,
-            // 第 6 项单位是手。
-            volume: parse_f64("成交量", fields[6])? * 100.0,
-            amount: amount_of(&fields)?,
-            status: tencent_status(fields[40]),
-            captured_at: yyyymmddhhmmss_to_datetime(fields[30]),
+        out.push(match market {
+            Market::Cn => cn_snapshot(&fields)?,
+            Market::Us => us_snapshot(&fields)?,
         });
     }
     Ok(out)
 }
 
-/// 成交额：优先取第 35 项的第三段（元），缺失时用第 37 项（万元）换算。
-fn amount_of(fields: &[&str]) -> Result<f64> {
+/// A 股快照的一行。
+fn cn_snapshot(fields: &[&str]) -> Result<Snapshot> {
+    Ok(Snapshot {
+        // 第 2 项是代码；按它配对，不按下标。
+        code: fields[2].trim().to_string(),
+        name: fields[1].trim().to_string(),
+        last: parse_f64("最新价", fields[3])?,
+        prev_close: parse_f64("昨收", fields[4])?,
+        open: parse_f64("今开", fields[5])?,
+        high: parse_f64("最高", fields[33])?,
+        low: parse_f64("最低", fields[34])?,
+        // 第 6 项单位是手。
+        volume: parse_f64("成交量", fields[6])? * 100.0,
+        amount: cn_amount(fields)?,
+        status: tencent_status(fields[40]),
+        captured_at: yyyymmddhhmmss_to_datetime(fields[30]),
+    })
+}
+
+/// 美股快照的一行。
+fn us_snapshot(fields: &[&str]) -> Result<Snapshot> {
+    Ok(Snapshot {
+        // 第 2 项带交易所后缀，形如 `AAPL.OQ`。
+        code: fields[2]
+            .trim()
+            .split('.')
+            .next()
+            .unwrap_or("")
+            .to_ascii_uppercase(),
+        name: fields[1].trim().to_string(),
+        last: parse_f64("最新价", fields[3])?,
+        prev_close: parse_f64("昨收", fields[4])?,
+        open: parse_f64("今开", fields[5])?,
+        high: parse_f64("最高", fields[33])?,
+        low: parse_f64("最低", fields[34])?,
+        // 第 6 项单位是股。
+        volume: parse_f64("成交量", fields[6])?,
+        amount: parse_f64("成交额", fields[37])?,
+        status: tencent_status(fields[40]),
+        captured_at: yyyymmddhhmmss_to_datetime(fields[30]),
+    })
+}
+
+/// A 股成交额：优先取第 35 项的第三段（元），缺失时用第 37 项（万元）换算。
+fn cn_amount(fields: &[&str]) -> Result<f64> {
     if let Some(segment) = fields[35].split('/').nth(2) {
         if let Ok(value) = segment.trim().parse::<f64>() {
             return Ok(value);

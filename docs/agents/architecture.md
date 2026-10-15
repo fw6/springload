@@ -4,6 +4,28 @@
 
 十二张 ticket 都已并进 master，所以各节里带 `#` 编号的「所有者」是当时的分工记录，不再约束改动；仍然生效的是各节冻结的名字、签名与表结构。
 
+## 0. 两个市场
+
+应用同时支持 A 股与美股，界面上直接切换。切换后整个应用换一套：数据库文件、行情源、
+股票池范围、交易规则、参数默认值与四步文案都按市场分流。
+
+- **数据分开**：`~/.springload/springload.db` 是 A 股，`~/.springload/springload.us.db`
+  是美股。两张表结构完全一样，各表不加市场列，靠库文件隔离；切换市场就是换库句柄。
+- **行情源**：A 股走通达信协议（`rustdx-complete`），美股走 Yahoo 的 chart 接口
+  （`yahoo_finance_api`）。两家的 `daily_raw` 口径不同：A 股给不复权原始价、由
+  `adjustment.rs` 按事件换算；美股给的就是前复权价、`corporate_actions` 返回空。
+- **价格基准**：`bar` 表里同一只股票的行必须落在同一个基准上。增量回补取的是
+  「最后一条日线到今天」这一段，行情源给出的是「以最新价为锚」的复权价，所以
+  `backfill_one` 每次都会拿重叠那一天的换算结果与库里比一下；对不上就整段重取。
+- **配置共用一份**：`springload.config.json` 里的 `market` 记当前市场，与市场无关的
+  策略参数全局共用，随市场变的（日均成交额下限、佣金费率）按市场各存一份。
+- **规则分流**：买入申报单位（A 股一手 100 股 / 美股整股）、T+1 与 T+0、费用模型、
+  收盘时间（15:00 / 16:00 美东）、涨跌颜色（红涨绿跌 / 绿涨红跌）都按市场取。
+- **判定条件不分流**：C1~C4、EMA、AVWAP、支撑区置信度、两级触发、仓位公式两个市场
+  完全一致，都是同一套回调买入法。
+
+美股行情源的事实来源见 `docs/research/us-quote-source.md`。
+
 规格是 [issue #10](https://github.com/fw6/springload/issues/10)，ticket 是 #11~#22。调研记录在 `docs/research/`，需求底本在 `docs/需求规格说明书.md`。
 
 ## 1. 仓库骨架
@@ -66,12 +88,13 @@ crates/springload-core/     # 领域核心
 | `storage/stock.rs`、`storage/bar.rs`、`storage/bar_sync_state.rs`、`storage/watchlist.rs`、`storage/support_zone.rs`、`storage/signal.rs`、`storage/trade_plan.rs`、`storage/position.rs`、`storage/trade_log.rs`、`storage/setting.rs` | #11 | 各表的读写（表的所有者 ticket 可以在自己的那张表的模块里追加函数） |
 | `storage/corporate_action.rs` | #13 | 除权除息事件的读写 |
 | `storage/bar_minute.rs` | #17 | 分钟线读写 |
-| `market/mod.rs` | #12 | `Bar`、`MinuteBar`、`Snapshot` 与三个适配器的统一形状 |
-| `market/eastmoney.rs` | #12 | 东方财富适配器（日线、分钟线、股票列表） |
-| `market/tencent.rs` | #12 | 腾讯适配器（盘中快照） |
+| `market/mod.rs` | #12 | `Market` 枚举（两个市场的数据、规则与文案都按它分流）、`Bar`、`MinuteBar`、`Snapshot`、`Security`、代码到板块与交易所的归属，以及行情数据源契约 `QuoteSource` |
+| `market/tdx.rs` | #12 | 通达信协议适配器（A 股证券列表、不复权日线、分钟线、除权除息）与服务器挑选 |
+| `market/us.rs` | #12 | Yahoo Finance 适配器（走 `yahoo_finance_api` crate：美股日线、分钟线，价已复权）与 Nasdaq Trader 的证券目录解析 |
+| `market/tencent.rs` | #12 | 腾讯适配器（盘中快照，两个市场共用） |
 | `market/sina.rs` | #12 | 新浪适配器（盘中快照，腾讯取不到时的备用来源） |
 | `market/url_budget.rs` | #12 | 批量请求的 URL 长度切分 |
-| `backfill.rs` | #12 | 股票池与日线回补 |
+| `backfill.rs` | #12 | 股票池与日线回补（抓不复权日线，按除权除息事件换算前复权后写库） |
 | `adjustment.rs` | #13 | 前复权换算与过期判定 |
 | `indicators.rs` | #14 | `ema`、`avwap`、`change`、`convergence`、`r_multiple` |
 | `screening.rs` | #14 | C1~C4 与剔除条件 |
@@ -105,6 +128,13 @@ crates/springload-core/     # 领域核心
 | `commands/settings.rs` | #22 |
 
 `app.rs` 里的 `invoke_handler` 按上面的顺序排列，每个 ticket 只在自己的那一行块里加自己的命令，合并时冲突只出现在相邻行。
+
+## 3.1 定时任务
+
+三个后台循环（收盘后回补、收盘后筛选、每分钟轮询）都起在命令层，每轮重新问一次
+`AppState::market()`，所以切换市场之后这一轮就跟着切过去，不用重启线程。收盘时间按
+市场当地时间算：A 股 15:00、美股 16:00 美东。是否该跑由 `springload-core` 的纯函数
+判定（`backfill::should_run_auto_sync`、`screening::should_run_auto_screen`），带单元测试。
 
 ## 4. 核心类型（冻结）
 
@@ -150,18 +180,70 @@ pub struct Snapshot {
 
 `Bar` 与 `MinuteBar` 里 `volume` 为 0 或日期缺口都表示当天没有交易；指标计算必须跳过这些 bar，不得当成 0 参与。
 
+市场枚举。每个市场有各自的数据、规则与文案。
+
+```rust
+// market/mod.rs
+pub enum Market { Cn, Us }
+
+impl Market {
+    pub const fn as_str(self) -> &'static str;      // "cn" | "us"
+    pub const fn label(self) -> &'static str;       // "A 股" | "美股"
+    pub const fn currency(self) -> &'static str;    // "元" | "美元"
+    pub const fn lot_size(self) -> i64;             // 100 | 1
+    pub const fn t_plus_one(self) -> bool;          // true | false
+    pub fn close_time(self) -> NaiveTime;           // 15:00 | 16:00
+    pub const fn tz(self) -> chrono_tz::Tz;
+    pub fn local_now(self) -> NaiveDateTime;
+    pub const fn db_file_name(self) -> &'static str;
+    pub const fn data_source(self) -> &'static str;
+    pub const ALL: [Market; 2];
+    pub fn parse(text: &str) -> Option<Self>;
+}
+```
+
+证券列表的一行。两个市场的代码都直接放进来，A 股是六位数字，美股是交易代码。
+
+```rust
+// market/mod.rs
+pub struct Security { pub code: String, pub name: String }
+```
+
+行情数据源的契约。回补、复权维护与分钟线轮询都通过它取数，测试用录制样本回放。
+A 股是 `market/tdx.rs` 的 `TdxSource`，美股是 `market/us.rs` 的 `UsSource`，
+用 `market::source(market)` 取。
+
+```rust
+// market/mod.rs
+pub trait QuoteSource: Send + Sync {
+    fn security_list(&self) -> Result<Vec<Security>>;                      // 本市场的全部证券
+    fn daily_raw(&self, code: &str, beg: &str) -> Result<Vec<Bar>>;        // 按日期升序
+    fn corporate_actions(&self, code: &str) -> Result<Vec<CorporateAction>>;  // 按除权日升序
+    fn minute_bars(&self, code: &str, period: u32) -> Result<Vec<MinuteBar>>;
+}
+
+pub fn source(market: Market) -> Arc<dyn QuoteSource>;
+```
+
+`daily_raw` 的复权口径按市场不同：A 股返回不复权原始价，前复权由 `adjustment.rs` 按
+`corporate_action` 表里的事件换算；美股源给的就是前复权价，`corporate_actions` 返回空，
+换算退化成恒等。写进 `bar` 表的都是前复权日线，成交量单位由适配器统一成股。
+
 ## 5. SQLite 表结构（冻结）
 
-库文件 `~/.springload/springload.db`。迁移是 `storage/migrations.rs` 里的一组按序号排列的 SQL 字符串，从空库一次跑到最新版本，重复运行不报错。全部表在 #11 建好，后续 ticket 只读写；结构变更往后追加新迁移，已发布的条目不改动。
+库文件按市场分：`~/.springload/springload.db` 是 A 股，`~/.springload/springload.us.db`
+是美股。两个库的表结构完全一样，迁移对两个库各跑一遍。迁移是 `storage/migrations.rs`
+里的一组按序号排列的 SQL 字符串，从空库一次跑到最新版本，重复运行不报错。全部表在
+#11 建好，后续 ticket 只读写；结构变更往后追加新迁移，已发布的条目不改动。
 
 ```sql
 CREATE TABLE stock (
-  code TEXT PRIMARY KEY,        -- 六位代码
+  code TEXT PRIMARY KEY,        -- A 股是六位代码，美股是交易代码
   name TEXT NOT NULL,
-  market TEXT NOT NULL,         -- 'SH' | 'SZ'
-  board TEXT NOT NULL,          -- 'main' | 'star' | 'chinext' | 'bse'
+  market TEXT NOT NULL,         -- A 股 'SH' | 'SZ'；美股 'US'
+  board TEXT NOT NULL,          -- A 股 'main' | 'star' | 'chinext' | 'bse'；美股 'common'
   sector TEXT,
-  listed_at TEXT,               -- 上市日 YYYY-MM-DD
+  listed_at TEXT,               -- 上市日 YYYY-MM-DD；三年窗口覆盖不到上市首日时为空
   is_st INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL
 );
@@ -189,8 +271,6 @@ CREATE TABLE bar_sync_state (
   code TEXT PRIMARY KEY,
   last_bar_date TEXT,
   fetched_at TEXT,
-  dktotal INTEGER,
-  tail_qfq TEXT,                -- JSON：[[date, close], ...]，最近 10 条前复权收盘价
   updated_at TEXT NOT NULL
 );
 
@@ -300,21 +380,32 @@ CREATE TABLE setting (
 
 ```rust
 pub struct Settings {
+    pub market: Market,                // 当前市场，默认 A 股
     pub risk_pct: f64,                 // 单笔风险比例，默认 0.005
     pub stop_distance_warn: f64,       // 止损距离警告阈值，默认 0.05
-    pub liquidity_threshold: f64,      // 日均成交额下限（元），默认 1e8
     pub chg_6m_threshold: f64,         // 近 6 个月涨幅阈值，默认 0.30
     pub rank_band: (f64, f64),         // 近 1 个月涨幅排名分位区间，默认 (0.20, 0.30)
     pub convergence_threshold: f64,    // 近 20 日极差阈值，默认 0.25
     pub beginner_mode: bool,           // 小白模式，默认 true
     pub autostart: bool,               // 登录时自启，默认 false
     pub fee_model_enabled: bool,       // 费用模型，默认 false
-    pub commission_rate: f64,          // 佣金费率，默认 0.00025
     pub first_run_confirmed: bool,     // 首次启动风险提示已确认，默认 false
+    pub cn: MarketSettings,            // A 股那一份
+    pub us: MarketSettings,            // 美股那一份
+}
+
+// 随市场变化的一组参数
+pub struct MarketSettings {
+    pub liquidity_threshold: f64,      // 日均成交额下限（本市场货币）
+    pub commission_rate: f64,          // 佣金费率
 }
 ```
 
+`MarketSettings::cn()` 是 1e8 元与 0.00025，`MarketSettings::us()` 是 2e7 美元与 0。
+`Settings::current()` 取当前市场那一份。
+
 缺失字段用默认值补齐，读到的值非法时用默认值并在返回值里带一条警告，不静默吞掉。
+旧版本配置文件里没有 `market` 与两个市场小节，读出来是默认值（A 股那一套）。
 
 ## 7. Tauri 命令（冻结）
 
@@ -322,10 +413,11 @@ pub struct Settings {
 
 | 命令 | 所有者 | 签名 |
 | --- | --- | --- |
-| `app_info` | #11 | `() -> AppInfo { version, data_source, last_sync_at }` |
+| `app_info` | #11 | `() -> AppInfo { version, market, market_label, currency, t_plus_one, data_source, last_sync_at }` |
 | `glossary` | #11 | `() -> Glossary { terms: Vec<Term>, steps: Vec<StepCopy> }` |
 | `settings_get` | #11 | `() -> Settings` |
-| `settings_update` | #11 | `(patch: SettingsPatch) -> Settings` |
+| `settings_update` | #11 | `(patch: SettingsPatch) -> Settings`（补丁里带 `market` 时同时切库） |
+| `market_set` | #11 | `(market: String) -> Settings`（`'cn'` 或 `'us'`，写进配置并换工作区） |
 | `sync_market` | #12 | `(full: bool) -> SyncReport { stocks, bars, elapsed_ms, errors }` |
 | `sync_status` | #12 | `() -> SyncStatus { running, done, total, last_sync_at, message }` |
 | `stock_list` | #12 | `() -> Vec<StockRow>` |
@@ -367,7 +459,10 @@ pub struct Settings {
 
 同步进度用事件推送，事件名 `sync://progress`，载荷 `SyncStatus`。轮询刷新用事件名 `poll://tick`。
 
-`positions_refresh_quotes` 与 `poll_tick` 内部走腾讯快照，单次上限 900 只代码，按 URL 长度切分（见 `docs/research/quote-api-limits.md`）。
+`positions_refresh_quotes` 与 `poll_tick` 内部走腾讯快照，单次上限 900 只代码，按 URL 长度切分（见 `docs/research/quote-api-limits.md`）。快照的代码前缀与字段位置按市场取，见 `docs/research/us-quote-source.md` 第 5 节。
+
+`AppState`（`state.rs`）持有当前市场的工作区：市场、该市场的库句柄与该市场的行情源。
+两个市场各用一个库文件，切过一回之后留在内存里，来回切不再重开。
 
 ## 8. 前端结构
 
@@ -378,6 +473,7 @@ pub struct Settings {
 | `main.tsx`、`App.tsx`、`index.css`、`test-setup.ts` | #11 |
 | `api/invoke.ts`（`invoke` 的统一封装与错误转换） | #11 |
 | `api/app.ts`、`api/settings.ts` | #11（`settings.ts` 的界面部分由 #22 用） |
+| `copy/MarketContext.tsx`（当前市场、计价货币、T+1 与切换动作） | #11 |
 | `api/market.ts` | #12 |
 | `api/adjustment.ts` | #13 |
 | `api/screen.ts` | #14 |
@@ -408,6 +504,10 @@ pub struct Settings {
 | `routes/PositionsPage.tsx` | #20 |
 | `routes/JournalPage.tsx` | #21 |
 | `routes/SettingsPage.tsx` | #22 |
+
+`App.tsx` 的层级：`HashRouter` → `MarketProvider` → `BeginnerModeProvider` → 报头 +
+路由子树 + 报尾。路由子树按市场换 `key`，切换市场后整棵子树重新挂载，各页按新市场
+重新取数；`GlossaryProvider` 在子树里面，四步文案也跟着换。
 
 `useFlow.ts` 由 #11 一次写好并冻结对外形状：
 
@@ -461,6 +561,9 @@ export interface AiCardProps {
 
 - **错误处理**：程序性错误（不变量被破坏、非法状态）就地 panic；网络失败、用户输入非法这类在边界捕获并返回错误状态，不静默吞掉，不用 0 或旧值代替。
 - **命令层是薄封装**：领域规则全在 `springload-core`，命令层只做参数转换、数据库连接、错误文案。
+- **市场分流放在领域层**：哪些东西随市场变由 `springload-core` 决定（`Market` 上的方法、
+  `Settings::current()`、各函数多带一个 `Market` 参数），命令层只把 `AppState::market()`
+  递进去。前端只负责按市场换文案与货币，不自己判定交易规则。
 - **前端不算指标、不判解锁、不发网络请求**：全部通过命令。
 - **测试**：Rust 集成测试放 `apps/springload/src-tauri/tests/`，直接调用命令；行情走 `crates/springload-core/tests/fixtures/` 下录制好的响应样本（样本取自 `docs/research/quote-api-spec.md` 与 `docs/research/quote-api-limits.md`），存储用临时 SQLite 文件。默认忽略的联网实测用 `#[ignore]`。
 - **前端测试**：vitest，`invoke` 换成桩，用 memory router 渲染路由。

@@ -347,111 +347,67 @@ https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=0.000513&fields1=f1,
 
 ## 5. 判断本地前复权历史是否过期的可实现判据
 
+行情源给的是不复权原始价，前复权由本地按除权除息事件换算（第 3 节的 `P ↦ (P - D) / (1 + r)`），
+所以「本地历史是否过期」等价于「本地历史是不是按当前这份事件算出来的」。
+
 ### 5.1 本地需要保存的状态
 
 ```
 last_bar_date        本地最后一条日线的日期
 fetched_at           上次抓取完成的时间
-dktotal_at_fetch     上次抓取时接口返回的 dktotal
-tail_qfq             本地保存的最后 K 条前复权收盘价（K 取 5 到 10 即可）
+corporate_action     每只股票的除权除息事件（除权日、每股现金分红 D、每股送转比例 r）
 ```
+
+`bar` 表存的是前复权价，`corporate_action` 表存的是算它用的事件。事件集合就是本地历史的
+「基准」，不需要额外保存服务端算好的前复权序列。
 
 ### 5.2 判据
 
-刷新某只股票时，先只取尾部（代价很小）：
+刚取到的事件与 `corporate_action` 表里记的逐条比对：
 
 ```
-GET .../kline/get?secid=<secid>&klt=101&fqt=1&lmt=10&end=20500101
+存在一条取到的事件，其除权日不在表里                     →  本地历史已过期
+存在一条取到的事件，其 D 或 r 与表里同一天的不同           →  本地历史已过期
 ```
 
-得到 `server_last`（服务器最新 bar 日期，即响应中最后一条的日期）、`dktotal`、以及最后 10 条前复权收盘价。再从分红接口取该股票最近一次除权除息日：
+第一类覆盖新发生的除权除息：事件一旦生效，它之前的所有 bar 都要重算。第二类覆盖行情源
+更正了分红送转比例。表里多出来的事件不判过期，否则每次检查都会重复重算同一批股票。
+
+### 5.3 为什么不能用「最近一次除权除息日晚于本地最后一条日线」
+
+这是最初的判据，它只在「除权日之后还没同步过」时才成立。同步发生在除权日之后时，
+除权日早于最后一条日线，判据不成立，但除权日之前的那段历史仍然是旧价，从此一直错下去。
+
+实测例：601766 在 2025-11-20 每 10 股派 1.1 元。库里 2025-11-20 之前的历史没有减掉这
+1.1 元，而最后一条日线已经是 2026-10-14。同一份库里这样的股票有 398 只（偏差超过
+0.01 元的天数超过 20 天）。
+
+### 5.4 为什么不用尾部数值比对
+
+上一版还有一个兜底判据：取服务端最近 10 条前复权收盘价，与本地保存的尾部逐条比对。
+它依赖「服务端能给出算好的前复权序列」，而通达信协议只返回不复权原始价，服务端没有
+这个序列可比，这条判据没有来源，已经删除。
+
+### 5.5 决策流程
 
 ```
-GET https://datacenter-web.eastmoney.com/api/data/v1/get?sortColumns=EX_DIVIDEND_DATE&sortTypes=-1&pageSize=5&pageNumber=1&reportName=RPT_SHAREBONUS_DET&columns=ALL&filter=(SECURITY_CODE="<code>")
-```
-
-在返回记录中取 `EX_DIVIDEND_DATE` 非空、且 `EX_DIVIDEND_DATE <= server_last` 的最大值，记为 `cur_last_ex`。
-
-判据 A（显式信号，依赖分红接口）：
-
-```
-cur_last_ex > last_bar_date  →  本地前复权历史已过期
-```
-
-推导：本地数据在 `fetched_at` 抓取完成，抓到的最后一条 bar 日期为 `last_bar_date`，因此本地前复权价已经包含所有 `EX_DIVIDEND_DATE <= last_bar_date` 的事件。若存在 `last_bar_date < EX_DIVIDEND_DATE <= server_last` 的事件，该事件会改写本地全部早于它的价格，本地保存的值全部失效。`fetched_at >= last_bar_date` 恒成立（抓不到未来的 bar），所以判据 A 与 `cur_last_ex > fetched_at` 等价。
-
-判据 B（兜底，不依赖分红接口）：
-
-```
-尾部 10 条前复权收盘价与本地保存的 tail_qfq 按日期逐条比对，任一条不同  →  已过期
-```
-
-除权日之前的所有 bar 都会被改写，所以只要本地保存的尾部区间落在新事件之前，其前复权价必然改变。判据 B 只需要日线接口。唯一会漏报的情形是「事件已发生、提供方尚未重算」，这种情形由判据 A 兜住。建议两条都跑：判据 A 能提前发现尚未重算的新事件，判据 B 能发现任何一次前复权序列的重算（包括数据更正）。
-
-`dktotal` 的作用与边界：
-
-- `dktotal` 与 `fqt` 无关，同一股票三个 `fqt` 取值返回相同的 `dktotal`。它等于该股票自上市以来的日线总条数，新增交易日会使它加 1，**除权除息不会使它变化**。
-- 用途一：`dktotal` 增加说明有新的 bar，用 `beg=last_bar_date+1`（或 `lmt = dktotal - dktotal_at_fetch`）做增量抓取。
-- 用途二：作为交叉核对，`dktotal - dktotal_at_fetch` 应等于区间内新增的交易日数；若不等，说明服务器端有插入或更正，此时也应整体重抓。
-- `dktotal` 本身**不能**用来发现除权除息。
-
-### 5.3 决策流程
-
-```
-let tail = fetch_qfq_tail(code, lmt = 10);          // server_last, dktotal, 尾部 qfq 收盘价
-let cur_last_ex = max_ex_date(code, <= tail.server_last);
-let stale = cur_last_ex.map_or(false, |e| e > local.last_bar_date)
-         || tail_overlap_changed(&tail, &local.tail_qfq);
+let fetched = source.corporate_actions(code)?;          // 除权除息事件
+let stored  = corporate_action::list_for_code(conn, code)?;
+let stale = stale_by_events(&fetched, &stored);
 
 if stale {
-    refetch_full(code, fqt = 1, beg = today - 3y, end = today);
-} else if tail.server_last > local.last_bar_date {
-    append_bars(code, fqt = 1, beg = local.last_bar_date + 1, end = tail.server_last);
+    resync(code);        // 重取不复权日线，把事件写进表，整段历史按新事件重算
+} else {
+    backfill(code);      // 从 last_bar_date 增量追加
 }
 ```
 
-Rust 里的条件判断可以直接写成：
+`resync` 用的是表里的事件（`effective_events`），所以行情源漏报、而表里已经有的旧事件
+仍然参与换算；除权日尚未到来的事件不改写历史，与行情源一致。
 
-```rust
-let stale_by_event = cur_last_ex
-    .map(|e| e > local.last_bar_date)
-    .unwrap_or(false);
-
-let stale_by_value = tail
-    .qfq_close
-    .iter()
-    .any(|(date, close)| local.tail_qfq.get(date).is_some_and(|old| old != close));
-
-if stale_by_event || stale_by_value {
-    refetch_full_history();
-}
-```
-
-### 5.4 接口字段的可得性
-
-| 需要的输入 | 可得性 | 来源 |
-| --- | --- | --- |
-| 本地抓取时间 | 本地保存 | — |
-| 本地最后一条记录日期 | 本地保存 | — |
-| `dktotal` | 可得 | 日线响应 `data.dktotal` |
-| 最近一次除权除息日 | 可得，但不在日线接口里 | `RPT_SHAREBONUS_DET` 的 `EX_DIVIDEND_DATE` |
-| 最近一次除权除息日（腾讯） | 可得 | 腾讯不复权日线中除权日那一条 bar 附带的 `cqr` 字段 |
-| 日线响应内是否含最近一次除权除息日 | 不含 | `data` 只有 `code`、`market`、`name`、`decimal`、`dktotal`、`preKPrice`、`klines` |
-| 实时行情接口是否含除权除息日 | 不含 | 探测 `push2.eastmoney.com/api/qt/stock/get` 的 f57 至 f300，无日期类除权字段 |
-| 当日是否为除权日 | 可得（仅当日） | 日线响应 `data.name` 在沪市除权日带 `XD`/`XR`/`DR` 前缀（600125 与 601019 在 2026-10-13 分别返回 `XD铁龙物`、`XD山东出`；深市 001309、300748 同日无前缀），次日恢复，不能用于回溯 |
-
-### 5.5 退而求其次的判据
-
-若拿不到 `RPT_SHAREBONUS_DET`：
-
-- 用判据 B（尾部前复权价逐条比对）。这是最稳的兜底，只需要日线接口，且不需要知道除权除息日。
-- 按「不复权与前复权收盘价的比值跳变」探测时要注意：比值 `qfq / raw = 1 / A - B / (A × raw)` 随价格水平变化，同一段区间内不是常数（001309 在 r = 0.40 的区间内，比值从 0.710948 变到 0.713083），所以不能假设比值恒定。可行的做法是保存每条的比值（或直接保存前复权价），在两次抓取之间比对**同一日期**的值是否改变；值改变即说明该股前复权历史被重算，需要整体重抓。
-- 只用 `dktotal` 变化无法发现除权除息，只能发现新增交易日。
-
----
 
 ## 6. 未解决项
 
 - 东方财富 `fqt=0` 序列在除权日 bar 上的涨跌额基准随「是否为当前交易日」切换，本轮分别观察到当日用参考价、历史用实际前收盘两种情况，未直接观察到同一条 bar 从前者变为后者的过程。切换发生在当日收盘后还是次日开盘时，未确认。
 - 东方财富为何在历史 bar 上按相邻不复权收盘价计算涨跌额（由此可超过板块涨跌幅限制），未见官方说明。
-- 判据 A 依赖 `RPT_SHAREBONUS_DET` 的时效性；该接口对当日除权记录的更新时点未测。
+- 通达信的 `xdxr` 对重整转增类个股漏报除权除息事件，见 `tdx-quote-source.md` 第五节。协议里没有除权参考价，无法从价格反推比例，本轮没有补救。

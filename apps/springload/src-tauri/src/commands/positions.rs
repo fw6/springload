@@ -17,9 +17,10 @@ const NOTIFICATION_TITLE: &str = "蓄势 Springload";
 /// 读全部未平仓持仓。最新价用已入库的日线兜底。
 #[tauri::command]
 pub async fn positions_get(state: State<'_, AppState>) -> Result<Vec<PositionView>, String> {
-    let db = state.db().clone();
+    let db = state.db();
+    let market = state.market();
     tauri::async_runtime::spawn_blocking(move || {
-        alerts::list_positions(&db).map_err(|error| error.to_string())
+        alerts::list_positions(&db, market).map_err(|error| error.to_string())
     })
     .await
     .map_err(|error| error.to_string())?
@@ -31,7 +32,8 @@ pub async fn positions_refresh_quotes(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<PositionView>, String> {
-    let db = state.db().clone();
+    let db = state.db();
+    let market = state.market();
     tauri::async_runtime::spawn_blocking(move || {
         let codes: Vec<String> = {
             let conn = db.conn().map_err(|error| error.to_string())?;
@@ -45,8 +47,8 @@ pub async fn positions_refresh_quotes(
             return Ok(Vec::new());
         }
 
-        let quotes = alerts::fetch_quotes(&codes).map_err(|error| error.to_string())?;
-        let views = alerts::refresh_positions(&db, &quotes).map_err(|error| error.to_string())?;
+        let quotes = alerts::fetch_quotes(&codes, market).map_err(|error| error.to_string())?;
+        let views = alerts::refresh_positions(&db, &quotes, market).map_err(|error| error.to_string())?;
         for view in &views {
             for alert in &view.alerts {
                 let body = format!(

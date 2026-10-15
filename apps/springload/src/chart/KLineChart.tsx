@@ -3,9 +3,10 @@ import { dispose, init, type Chart, type KLineData, type OverlayCreate } from "k
 import { toMessage } from "../api/invoke";
 import { barsGet, type Bar } from "../api/market";
 import type { SupportZoneView } from "../api/types";
+import { useMarket } from "../copy/MarketContext";
 import type { Flow } from "../flow/useFlow";
 import { type ZoneKind } from "./overlays";
-import { CHART_COLORS } from "./palette";
+import { chartColors } from "./palette";
 import { getZones, loadZones, resaveZones, saveZone, subscribeZones } from "./zoneStore";
 import "./overlays";
 
@@ -48,6 +49,10 @@ function supportsCanvas(): boolean {
  */
 export default function KLineChart({ flow }: { flow: Flow }) {
   const { selected, period, tool, avwapStartDate, signal } = flow;
+  // 图版在切换市场时随路由子树一起重新挂载，这里读到的就是当前市场。
+  const { market } = useMarket();
+  // 涨跌两色按当前市场取：A 股红涨绿跌，美股绿涨红跌。
+  const colors = chartColors(market);
   const holderRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
   /** 正在画的 overlay 的 id，对账时要跳过它。 */
@@ -134,46 +139,46 @@ export default function KLineChart({ flow }: { flow: Flow }) {
     chartRef.current = chart;
     chart.setStyles({
       grid: {
-        horizontal: { color: CHART_COLORS.grid },
-        vertical: { color: CHART_COLORS.grid },
+        horizontal: { color: colors.grid },
+        vertical: { color: colors.grid },
       },
       candle: {
         bar: {
-          upColor: CHART_COLORS.up,
-          downColor: CHART_COLORS.down,
-          upBorderColor: CHART_COLORS.up,
-          downBorderColor: CHART_COLORS.down,
-          upWickColor: CHART_COLORS.up,
-          downWickColor: CHART_COLORS.down,
+          upColor: colors.up,
+          downColor: colors.down,
+          upBorderColor: colors.up,
+          downBorderColor: colors.down,
+          upWickColor: colors.up,
+          downWickColor: colors.down,
         },
       },
       indicator: {
         lines: [
-          { color: CHART_COLORS.ema },
-          { color: CHART_COLORS.reference },
-          { color: CHART_COLORS.avwap },
+          { color: colors.ema },
+          { color: colors.reference },
+          { color: colors.avwap },
         ],
-        ohlc: { upColor: CHART_COLORS.up, downColor: CHART_COLORS.down },
+        ohlc: { upColor: colors.up, downColor: colors.down },
       },
       xAxis: {
-        axisLine: { color: CHART_COLORS.axisLine },
-        tickLine: { color: CHART_COLORS.axisLine },
-        tickText: { color: CHART_COLORS.axisText, family: "SF Mono, Menlo, monospace" },
+        axisLine: { color: colors.axisLine },
+        tickLine: { color: colors.axisLine },
+        tickText: { color: colors.axisText, family: "SF Mono, Menlo, monospace" },
       },
       yAxis: {
-        axisLine: { color: CHART_COLORS.axisLine },
-        tickLine: { color: CHART_COLORS.axisLine },
-        tickText: { color: CHART_COLORS.axisText, family: "SF Mono, Menlo, monospace" },
+        axisLine: { color: colors.axisLine },
+        tickLine: { color: colors.axisLine },
+        tickText: { color: colors.axisText, family: "SF Mono, Menlo, monospace" },
       },
-      separator: { color: CHART_COLORS.axisLine },
+      separator: { color: colors.axisLine },
       crosshair: {
         horizontal: {
-          line: { color: CHART_COLORS.axisText },
-          text: { color: CHART_COLORS.axisText, borderColor: CHART_COLORS.axisLine },
+          line: { color: colors.axisText },
+          text: { color: colors.axisText, borderColor: colors.axisLine },
         },
         vertical: {
-          line: { color: CHART_COLORS.axisText },
-          text: { color: CHART_COLORS.axisText, borderColor: CHART_COLORS.axisLine },
+          line: { color: colors.axisText },
+          text: { color: colors.axisText, borderColor: colors.axisLine },
         },
       },
     });
@@ -231,7 +236,7 @@ export default function KLineChart({ flow }: { flow: Flow }) {
       name: "verticalStraightLine",
       lock: true,
       points: [{ timestamp: toTimestamp(bar.date), value: bar.close }],
-      styles: { line: { color: CHART_COLORS.avwap, style: "dashed" } },
+      styles: { line: { color: colors.avwap, style: "dashed" } },
     });
   }, [avwapStartIndex, selected, period, bars]);
 
@@ -275,7 +280,7 @@ export default function KLineChart({ flow }: { flow: Flow }) {
           id: zone.id,
           name: "priceLine",
           points: [{ timestamp: toTimestamp(first.date), value: zone.low }],
-          styles: { line: { color: CHART_COLORS.level, style: "dashed" } },
+          styles: { line: { color: colors.level, style: "dashed" } },
           onPressedMoveEnd: (event) => {
             const value = event.overlay.points[0]?.value;
             if (typeof value === "number") {

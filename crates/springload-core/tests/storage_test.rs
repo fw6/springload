@@ -160,8 +160,6 @@ fn bar_sync_state_tracks_latest_fetch() {
         code: "600000".into(),
         last_bar_date: Some("2026-10-13".into()),
         fetched_at: Some("2026-10-13T08:00:00Z".into()),
-        dktotal: Some(730),
-        tail_qfq: Some("[[\"2026-10-13\",11.5]]".into()),
         updated_at: "2026-10-13T08:00:00Z".into(),
     };
     bar_sync_state::upsert(&conn, &a).unwrap();
@@ -169,8 +167,6 @@ fn bar_sync_state_tracks_latest_fetch() {
         code: "000001".into(),
         last_bar_date: Some("2026-10-13".into()),
         fetched_at: Some("2026-10-13T09:00:00Z".into()),
-        dktotal: None,
-        tail_qfq: None,
         updated_at: "2026-10-13T09:00:00Z".into(),
     };
     bar_sync_state::upsert(&conn, &b).unwrap();

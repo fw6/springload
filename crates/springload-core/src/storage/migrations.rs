@@ -161,8 +161,22 @@ const V3_BAR_DATE_INDEX: &str = r#"
 CREATE INDEX idx_bar_date ON bar(date);
 "#;
 
+/// 序号 4：`bar_sync_state` 去掉两个跟着东方财富接口走的字段。
+///
+/// 行情改走通达信协议后，服务端不报告日线总条数，也没有服务端算好的前复权序列可比对，
+/// `dktotal` 与 `tail_qfq` 都不再有来源。
+const V4_DROP_EASTMONEY_COLUMNS: &str = r#"
+ALTER TABLE bar_sync_state DROP COLUMN dktotal;
+ALTER TABLE bar_sync_state DROP COLUMN tail_qfq;
+"#;
+
 /// 按序号排列的迁移列表。新增迁移只往后追加，不改动已发布的条目。
-pub const MIGRATIONS: &[&str] = &[V1_INITIAL_SCHEMA, V2_WATCHLIST_MANUAL, V3_BAR_DATE_INDEX];
+pub const MIGRATIONS: &[&str] = &[
+    V1_INITIAL_SCHEMA,
+    V2_WATCHLIST_MANUAL,
+    V3_BAR_DATE_INDEX,
+    V4_DROP_EASTMONEY_COLUMNS,
+];
 
 /// 从当前版本跑到最新版本。已应用的迁移会跳过。
 pub fn run(conn: &mut Connection) -> Result<()> {

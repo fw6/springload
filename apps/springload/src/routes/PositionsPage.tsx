@@ -16,7 +16,8 @@ import { Alert as Note, AlertContent, AlertDescription, AlertIcon } from "../com
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Stamp, type StampStatus } from "../components/ui/stamp";
-import { riskNotes } from "../copy/riskNotes";
+import { useCurrency, useMarket } from "../copy/MarketContext";
+import { riskNotes, sellTiming } from "../copy/riskNotes";
 
 /** 刷新间隔：每分钟一次。 */
 export const REFRESH_INTERVAL_MS = 60_000;
@@ -45,6 +46,8 @@ function PositionRow({
 }) {
   const [exitPrice, setExitPrice] = useState<string>(view.last === null ? "" : String(view.last));
   const [exitDate, setExitDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const currency = useCurrency();
+  const { market } = useMarket();
 
   return (
     <article className="flex flex-col gap-2.5 border border-rule bg-slip p-3">
@@ -79,13 +82,13 @@ function PositionRow({
       {view.alerts.map((alert) => (
         <p key={alert.kind} className="text-note text-ink-soft">
           {alert.message}：信号日 {alert.signalDate}，可执行日 {alert.executableDate}
-          （T+1，当天买入的次日才能卖）
+          （{sellTiming(market)}）
         </p>
       ))}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Input
-          label="实际成交价（元/股）"
+          label={`实际成交价（${currency}/股）`}
           type="number"
           step="0.01"
           value={exitPrice}
@@ -108,6 +111,8 @@ function PositionRow({
 
 /** 持仓跟踪：已执行的仓位、最新价、离场提示与填成交价。 */
 export default function PositionsPage() {
+  const currency = useCurrency();
+  const { market } = useMarket();
   const [views, setViews] = useState<PositionView[]>([]);
   const [drafts, setDrafts] = useState<TradePlan[]>([]);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
@@ -158,7 +163,7 @@ export default function PositionsPage() {
           setStatus(
             `已离场：出场价 ${price(entry.exitPrice)}，R 倍数 ${
               entry.rMultiple === null ? "—" : entry.rMultiple.toFixed(2)
-            }，盈亏 ${entry.pnl === null ? "—" : entry.pnl.toFixed(2)} 元。`,
+            }，盈亏 ${entry.pnl === null ? "—" : entry.pnl.toFixed(2)} ${currency}。`,
           );
           setError(null);
           await load();
@@ -218,7 +223,9 @@ export default function PositionsPage() {
         <Note variant="info">
           <AlertIcon />
           <AlertContent>
-            <AlertDescription>{riskNotes.tPlus1}</AlertDescription>
+            <AlertDescription>
+              {market === "us" ? riskNotes.usSession : riskNotes.tPlusOne}
+            </AlertDescription>
           </AlertContent>
         </Note>
 

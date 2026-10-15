@@ -86,8 +86,6 @@ fn seed(dir: &std::path::Path) {
                 code: "600000".to_string(),
                 last_bar_date: Some("2026-10-13".to_string()),
                 fetched_at: Some("2026-10-13T07:00:00Z".to_string()),
-                dktotal: Some(6404),
-                tail_qfq: Some("[]".to_string()),
                 updated_at: "2026-10-13T07:00:00Z".to_string(),
             },
         )

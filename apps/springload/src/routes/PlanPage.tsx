@@ -17,6 +17,7 @@ import { TermHint } from "../components/TermHint";
 import { Alert, AlertContent, AlertDescription, AlertIcon } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
 import { Stamp, type StampStatus } from "../components/ui/stamp";
+import { useCurrency } from "../copy/MarketContext";
 import { riskNotes } from "../copy/riskNotes";
 
 /** 状态的中文名。 */
@@ -39,7 +40,7 @@ function price(value: number): string {
   return value.toFixed(2);
 }
 
-/** 金额按元展示。 */
+/** 金额按本市场货币展示。 */
 function money(value: number): string {
   return value.toFixed(2);
 }
@@ -60,8 +61,13 @@ function refsText(refs: ZoneRefs | null): string {
   return `${price(refs.avwap ?? 0)} / ${price(refs.ema21 ?? 0)} / ${price(refs.prevHigh ?? 0)}`;
 }
 
-/** 把计划卡拼成可以带走的纯文本。 */
-export function cardToText(card: PlanCard, refs: ZoneRefs | null, zone: string): string {
+/** 把计划卡拼成可以带走的纯文本。金额带上本市场的货币名。 */
+export function cardToText(
+  card: PlanCard,
+  refs: ZoneRefs | null,
+  zone: string,
+  currency: string,
+): string {
   const plan = card.plan;
   return [
     `交易计划卡 · ${plan.code} ${card.name ?? ""}`.trim(),
@@ -73,7 +79,7 @@ export function cardToText(card: PlanCard, refs: ZoneRefs | null, zone: string):
     `止损价：${price(plan.stop)}`,
     `3R / 5R 目标位：${price(plan.t3)} / ${price(plan.t5)}`,
     `仓位股数：${plan.shares} 股`,
-    `投入金额：${money(plan.capital)} 元`,
+    `投入金额：${money(plan.capital)} ${currency}`,
     `止损距离：${pct(plan.stopDistance)}`,
     `计划风险（占账户）：${pct(card.actualRiskPct)}`,
     `减仓安排：3R 卖 ${card.reduce.shares3r} 股、5R 再卖 ${card.reduce.shares5r} 股，剩余 ${card.reduce.remaining} 股跟随 9 日均线`,
@@ -83,6 +89,7 @@ export function cardToText(card: PlanCard, refs: ZoneRefs | null, zone: string):
 
 /** 计划卡：把第 4 步的结果打包成一页，可以复制、导出、存草稿、确认执行。 */
 export default function PlanPage() {
+  const currency = useCurrency();
   const [card, setCard] = useState<PlanCard | null>(null);
   const [refs, setRefs] = useState<ZoneRefs | null>(null);
   const [zone, setZone] = useState<string>("未标注");
@@ -137,7 +144,7 @@ export default function PlanPage() {
   const copyText = useCallback(() => {
     if (card === null) return;
     run(async () => {
-      await navigator.clipboard.writeText(cardToText(card, refs, zone));
+      await navigator.clipboard.writeText(cardToText(card, refs, zone, currency));
       return "已复制为文本。";
     });
   }, [card, refs, run, zone]);
@@ -274,7 +281,7 @@ export default function PlanPage() {
         ["止损价", price(plan.stop)],
         ["3R / 5R 目标位", `${price(plan.t3)} / ${price(plan.t5)}`],
         ["仓位股数", `${plan.shares} 股`],
-        ["投入金额", `${money(plan.capital)} 元`],
+        ["投入金额", `${money(plan.capital)} ${currency}`],
         ["止损距离", pct(plan.stopDistance)],
         ["计划风险（占账户）", pct(card.actualRiskPct)],
       ],

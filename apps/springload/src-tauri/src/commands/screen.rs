@@ -5,6 +5,7 @@
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use springload_core::flow::{self, StepUnlock};
+use springload_core::market::Market;
 use springload_core::screening::{self, ScreenParams, ScreenReport};
 use springload_core::storage::watchlist::{self, WatchlistItem};
 use springload_core::storage::{self, stock};
@@ -53,7 +54,7 @@ impl From<watchlist::WatchlistEntry> for WatchlistRow {
 /// 跑一遍筛选，把入选写进观察名单并返回报告。
 #[tauri::command]
 pub async fn screen_stocks(state: State<'_, AppState>) -> Result<ScreenReport, String> {
-    let db = state.db().clone();
+    let db = state.db();
     let settings = state.settings_get().map_err(|error| error.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
         let params = ScreenParams::from_settings(&settings);
@@ -136,13 +137,38 @@ pub fn watchlist_remove(state: State<'_, AppState>, code: String) -> Result<(), 
 #[tauri::command]
 pub fn step_unlock(state: State<'_, AppState>, code: String) -> Result<StepUnlock, String> {
     let conn = state.db().conn().map_err(|error| error.to_string())?;
-    flow::step_unlock(&conn, &code).map_err(|error| error.to_string())
+    flow::step_unlock(&conn, &code, state.market()).map_err(|error| error.to_string())
 }
 
 /// 起收盘后自动筛选的定时任务。由 `app.rs` 的装配过程调用一次。
+///
+/// 每轮都重新问一次当前是哪个市场，切到美股之后这一轮就跟着切过去；筛选参数也从
+/// 配置文件重新读，改过阈值不用重启应用。
 pub fn start_scheduler<R: tauri::Runtime>(app: AppHandle<R>) {
-    let state = app.state::<AppState>();
-    let db = state.db().clone();
-    let config_path = state.config_path().to_path_buf();
-    screening::spawn_daily_scheduler(db, config_path);
+    std::thread::spawn(move || {
+        let mut last_run: Option<(Market, chrono::NaiveDate)> = None;
+        loop {
+            let state = app.state::<AppState>();
+            let market = state.market();
+            let now = market.local_now();
+            let previous = last_run
+                .as_ref()
+                .filter(|(ran_market, _)| *ran_market == market)
+                .map(|(_, day)| *day);
+            if screening::should_run_auto_screen(
+                now.time(),
+                market.close_time(),
+                now.date(),
+                previous,
+            ) {
+                if let Ok(load) = springload_core::config::load_settings(state.config_path()) {
+                    let params = ScreenParams::from_settings(&load.settings);
+                    if screening::run_screen(&state.db(), &params).is_ok() {
+                        last_run = Some((market, now.date()));
+                    }
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_secs(60));
+        }
+    });
 }

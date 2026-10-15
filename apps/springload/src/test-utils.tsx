@@ -4,7 +4,9 @@ import type { ReactNode } from "react";
 import { vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import type { Glossary } from "./copy/GlossaryContext";
+import type { AppInfo } from "./api/app";
 import type { Settings } from "./api/settings";
+import { MarketProvider } from "./copy/MarketContext";
 
 /** 被替换成桩的 invoke。测试文件里先 `vi.mock("@tauri-apps/api/core", ...)`。 */
 export const mockedInvoke = vi.mocked(invoke);
@@ -73,26 +75,41 @@ export const glossaryStub: Glossary = {
   ],
 };
 
-/** app_info 命令的桩数据。 */
-export const appInfoStub = {
+/** app_info 命令的桩数据：默认是 A 股。 */
+export const appInfoStub: AppInfo = {
   version: "0.1.0",
-  dataSource: "东方财富 · 前复权",
+  market: "cn",
+  marketLabel: "A 股",
+  currency: "元",
+  tPlusOne: true,
+  dataSource: "通达信 · 前复权",
   lastSyncAt: null,
+};
+
+/** 美股那一套的 app_info 桩数据。 */
+export const usAppInfoStub: AppInfo = {
+  ...appInfoStub,
+  market: "us",
+  marketLabel: "美股",
+  currency: "美元",
+  tPlusOne: false,
+  dataSource: "Yahoo Finance · 前复权",
 };
 
 /** settings_get 命令的桩数据。 */
 export const settingsStub: Settings = {
+  market: "cn",
   riskPct: 0.005,
   stopDistanceWarn: 0.05,
-  liquidityThreshold: 1e8,
   chg6mThreshold: 0.3,
   rankBand: [0.2, 0.3],
   convergenceThreshold: 0.25,
   beginnerMode: true,
   autostart: false,
   feeModelEnabled: false,
-  commissionRate: 0.00025,
   firstRunConfirmed: false,
+  cn: { liquidityThreshold: 1e8, commissionRate: 0.00025 },
+  us: { liquidityThreshold: 2e7, commissionRate: 0 },
 };
 
 /** 给 invoke 装上默认实现；未登记的命令直接失败，避免静默通过。 */
@@ -102,6 +119,7 @@ export function stubInvoke(overrides: Record<string, unknown> = {}) {
     glossary: glossaryStub,
     settings_get: settingsStub,
     settings_update: settingsStub,
+    market_set: settingsStub,
     watchlist_get: [],
     step_unlock: { unlocked: [true, true, true, true], reasons: ["", "", "", ""] },
     corporate_actions_stale: [],
@@ -113,7 +131,15 @@ export function stubInvoke(overrides: Record<string, unknown> = {}) {
   }) as typeof invoke);
 }
 
-/** 用 memory router 在指定路由渲染节点。 */
+/**
+ * 用 memory router 在指定路由渲染节点。
+ *
+ * 外壳里市场上下文始终在路由之上，所以这里一并包上，页面组件都能读到当前市场。
+ */
 export function renderAt(path: string, node: ReactNode) {
-  return render(<MemoryRouter initialEntries={[path]}>{node}</MemoryRouter>);
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <MarketProvider>{node}</MarketProvider>
+    </MemoryRouter>,
+  );
 }

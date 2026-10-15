@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 import Step4, { reduceShares } from "./Step4";
 import { GlossaryProvider } from "../../copy/GlossaryContext";
 import type { SizingInput } from "../../api/types";
-import { glossaryStub, mockedInvoke, renderAt, settingsStub } from "../../test-utils";
+import { glossaryStub, mockedInvoke, renderAt, settingsStub, usAppInfoStub } from "../../test-utils";
 import type { Flow } from "../useFlow";
 
 /** 规格里的示例输入：账户 100,000 元，买入价 20.00、止损价 19.50。 */
@@ -29,6 +29,7 @@ function calc(input: SizingInput) {
     t3: input.entry + 3 * perR,
     t5: input.entry + 5 * perR,
     unusedRisk: maxLoss - shares * perR,
+    lotSize: 100,
   };
 }
 
@@ -85,6 +86,45 @@ function renderStep4(input: SizingInput = sizing) {
   );
 }
 
+/** 按美股渲染第 4 步：货币换成美元，股数按整股取整。 */
+function renderStep4Us(input: SizingInput = sizing) {
+  sizing = input;
+  mockedInvoke.mockImplementation((async (command: string) => {
+    if (command === "app_info") return usAppInfoStub;
+    if (command === "glossary") return glossaryStub;
+    if (command === "settings_get") return settingsStub;
+    if (command === "plan_calc") {
+      // 与 springload-core::sizing 一致：美股按 1 股取整。
+      const perR = input.entry - input.stop;
+      const maxLoss = input.account * input.riskPct;
+      const shares = Math.floor(maxLoss / perR);
+      const capital = shares * input.entry;
+      return {
+        perR,
+        maxLoss,
+        shares,
+        capital,
+        posPct: capital / input.account,
+        stopDistance: perR / input.entry,
+        t3: input.entry + 3 * perR,
+        t5: input.entry + 5 * perR,
+        unusedRisk: maxLoss - shares * perR,
+        lotSize: 1,
+      };
+    }
+    if (command === "explain") {
+      return { text: "这单的风险结构是：每股风险 0.50 美元。", generatedAt: "x", model: "m", cached: true };
+    }
+    throw new Error(`测试桩没有登记命令 ${command}`);
+  }) as never);
+  return renderAt(
+    "/",
+    <GlossaryProvider>
+      <Step4 flow={flowStub(input)} />
+    </GlossaryProvider>,
+  );
+}
+
 describe("第 4 步：仓位计算", () => {
   it("示例输入算出规格里那组数字", async () => {
     const { container } = renderStep4();
@@ -112,7 +152,7 @@ describe("第 4 步：仓位计算", () => {
     const formula = container.querySelector('[data-slot="formula"]')!.textContent ?? "";
     expect(formula).toContain("每股风险 = 20.00 − 19.50 = 0.50");
     expect(formula).toContain("最大可亏金额 = 100000.00 × 0.50% = 500.00");
-    expect(formula).toContain("可买股数 = 500.00 ÷ 0.50 后向下取整到 100 股 = 1000 股");
+    expect(formula).toContain("可买股数 = 500.00 ÷ 0.50 后向下取整到 100 股的整数倍 = 1000 股");
     expect(formula).toContain("投入金额 = 1000 × 20.00 = 20000.00");
     expect(formula).toContain("仓位占比 = 20000.00 ÷ 100000.00 = 20.00%");
     expect(formula).toContain("止损距离 = 0.50 ÷ 20.00 = 2.50%");
@@ -182,5 +222,21 @@ describe("减仓股数", () => {
     expect(reduceShares(1000)).toEqual({ shares3r: 333, shares5r: 333, remaining: 334 });
     expect(reduceShares(100)).toEqual({ shares3r: 33, shares5r: 33, remaining: 34 });
     expect(reduceShares(0)).toEqual({ shares3r: 0, shares5r: 0, remaining: 0 });
+  });
+});
+
+describe("第 4 步：美股", () => {
+  it("货币换成美元，股数按整股取整", async () => {
+    renderStep4Us({ entry: 20.0, stop: 19.5, account: 1_000, riskPct: 0.005 });
+
+    expect(await screen.findByLabelText("买入价（美元/股）")).toBeTruthy();
+    expect(screen.getByLabelText("止损价（美元/股）")).toBeTruthy();
+    expect(screen.getByLabelText("账户金额（美元）")).toBeTruthy();
+    // 最大可亏 5 美元、每股风险 0.50 美元 → 10 股；A 股同一笔输入会取整到 0。
+    expect(await screen.findByText("可买股数")).toBeTruthy();
+    const formula = document.querySelector('[data-slot="formula"]')!.textContent ?? "";
+    expect(formula).toContain("后向下取整到 整股 = 10 股");
+    // 减仓安排按整股算，两个市场一致。
+    expect(screen.getByText(/3R 卖 3 股/)).toBeTruthy();
   });
 });

@@ -11,10 +11,6 @@ pub struct BarSyncState {
     pub last_bar_date: Option<String>,
     /// 上次抓取时间。
     pub fetched_at: Option<String>,
-    /// 服务端报告的日线总条数。
-    pub dktotal: Option<i64>,
-    /// JSON：`[[date, close], ...]`，最近 10 条前复权收盘价。
-    pub tail_qfq: Option<String>,
     pub updated_at: String,
 }
 
@@ -24,8 +20,6 @@ impl BarSyncState {
             code: row.get("code")?,
             last_bar_date: row.get("last_bar_date")?,
             fetched_at: row.get("fetched_at")?,
-            dktotal: row.get("dktotal")?,
-            tail_qfq: row.get("tail_qfq")?,
             updated_at: row.get("updated_at")?,
         })
     }
@@ -34,20 +28,16 @@ impl BarSyncState {
 /// 写入或更新一只股票的回补状态。
 pub fn upsert(conn: &Connection, state: &BarSyncState) -> Result<()> {
     conn.execute(
-        "INSERT INTO bar_sync_state (code, last_bar_date, fetched_at, dktotal, tail_qfq, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "INSERT INTO bar_sync_state (code, last_bar_date, fetched_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(code) DO UPDATE SET
            last_bar_date = excluded.last_bar_date,
            fetched_at = excluded.fetched_at,
-           dktotal = excluded.dktotal,
-           tail_qfq = excluded.tail_qfq,
            updated_at = excluded.updated_at",
         params![
             state.code,
             state.last_bar_date,
             state.fetched_at,
-            state.dktotal,
-            state.tail_qfq,
             state.updated_at,
         ],
     )?;

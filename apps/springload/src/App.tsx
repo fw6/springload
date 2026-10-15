@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
 import { HashRouter, NavLink, Route, Routes } from "react-router-dom";
-import { getAppInfo, type AppInfo } from "./api/app";
 import { toMessage } from "./api/invoke";
+import { BeginnerModeProvider } from "./copy/BeginnerModeContext";
 import { GlossaryProvider } from "./copy/GlossaryContext";
+import { upDownLabel } from "./chart/palette";
+import { MARKET_LABELS, MarketProvider, useMarket } from "./copy/MarketContext";
+import { tradingRule } from "./copy/riskNotes";
 import { isMacOS } from "./lib/platform";
 import { cn } from "./lib/utils";
 import FlowPage from "./flow/FlowPage";
@@ -30,24 +32,60 @@ function today(): string {
   }`;
 }
 
+/**
+ * 市场切换：两个格子，当前那个用反白的油墨底。
+ *
+ * 它和版次条并排但不同轴：版次条是这一版看哪一步，这里是这一版看哪个市场。用油墨
+ * 底而不是套红，是为了不跟版次条的套红抢眼。
+ */
+function MarketSwitch() {
+  const { market, loaded, error, setMarket } = useMarket();
+
+  return (
+    <div className="flex flex-none items-stretch gap-1">
+      <span className="flex items-center pr-1 text-micro text-ink-soft">市场</span>
+      <div
+        role="group"
+        aria-label="交易市场"
+        className="flex items-stretch gap-px border border-rule-strong bg-rule-strong"
+      >
+        {MARKET_LABELS.map((item) => {
+          const active = market === item.market;
+          return (
+            <button
+              key={item.market}
+              type="button"
+              data-slot="market-chip"
+              aria-pressed={active}
+              disabled={!loaded}
+              onClick={() => {
+                if (active || !loaded) return;
+                void setMarket(item.market);
+              }}
+              className={cn(
+                "px-3 py-1.5 text-body transition-colors disabled:opacity-45",
+                active
+                  ? "bg-ink font-medium text-paper"
+                  : "bg-paper text-ink-soft hover:bg-slip hover:text-ink",
+              )}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+      {error !== null ? (
+        <span className="flex items-center pl-2 text-micro text-alert">
+          切换失败：{toMessage(error)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /** 报头：刊名在左，刊期与运行信息在右，下面压一条粗加细的双线。 */
 function Masthead() {
-  const [info, setInfo] = useState<AppInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    getAppInfo()
-      .then((next) => {
-        if (alive) setInfo(next);
-      })
-      .catch((cause: unknown) => {
-        if (alive) setError(toMessage(cause));
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const { info } = useMarket();
 
   return (
     <header
@@ -81,9 +119,6 @@ function Masthead() {
               <span>最近同步 {info.lastSyncAt ?? "尚未同步"}</span>
             </>
           ) : null}
-          {error !== null ? (
-            <span className="text-alert">应用信息读取失败：{error}</span>
-          ) : null}
         </span>
       </div>
 
@@ -95,7 +130,7 @@ function Masthead() {
           </span>
           <span className="font-mono text-micro tracking-[0.3em] text-ink-soft">SPRINGLOAD</span>
         </span>
-        <span className="font-display text-note text-ink-soft">A 股回调买入法工作台</span>
+        <span className="font-display text-note text-ink-soft">回调买入法工作台</span>
       </div>
 
       {/* 报头与版次条之间压一条粗加细的双线。 */}
@@ -103,50 +138,64 @@ function Masthead() {
       <div aria-hidden className="mt-[3px] border-t border-ink" />
 
       {/*
-        版次条的底色就是格子之间的缝：nav 只占五个格子那么宽，
-        底色才不会从最后一格一路铺到右端。
+        版次条：左边五个版次，右边市场切换。版次条的底色就是格子之间的缝，
+        nav 只占五个格子那么宽，底色才不会从最后一格一路铺到右端。
       */}
-      <nav aria-label="主导航" className="flex w-fit flex-wrap items-stretch gap-px bg-rule-strong">
-        {ROUTES.map((route) => (
-          <NavLink
-            key={route.to}
-            to={route.to}
-            end
-            className={({ isActive }) =>
-              cn(
-                "flex items-center px-3.5 py-1.5 text-body transition-colors",
-                isActive
-                  ? "bg-proof font-medium text-paper"
-                  : "bg-paper text-ink-soft hover:bg-slip hover:text-ink",
-              )
-            }
-          >
-            {route.label}
-          </NavLink>
-        ))}
-      </nav>
+      <div className="flex flex-wrap items-stretch justify-between gap-x-4 gap-y-1.5">
+        <nav aria-label="主导航" className="flex w-fit flex-wrap items-stretch gap-px bg-rule-strong">
+          {ROUTES.map((route) => (
+            <NavLink
+              key={route.to}
+              to={route.to}
+              end
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center px-3.5 py-1.5 text-body transition-colors",
+                  isActive
+                    ? "bg-proof font-medium text-paper"
+                    : "bg-paper text-ink-soft hover:bg-slip hover:text-ink",
+                )
+              }
+            >
+              {route.label}
+            </NavLink>
+          ))}
+        </nav>
+        <MarketSwitch />
+      </div>
     </header>
   );
 }
 
-/** 报尾：全刊统一的口径与风险说明。 */
+/** 报尾：全刊统一的口径与风险说明，按市场换那一条交易制度的提示。 */
 function Colophon() {
+  const { market, info } = useMarket();
+  // 市场名由后端给，界面上不另写一份。
+  const label = info?.marketLabel ?? (market === "us" ? "美股" : "A 股");
+
   return (
     <footer className="flex flex-none flex-wrap items-center gap-x-3 border-t border-rule bg-paper px-4 py-1.5 text-micro text-ink-soft">
       <span>本刊所有数字为理论值，未计入交易成本与滑点。</span>
-      <span>A 股 T+1，当日买入次日才能卖出。</span>
-      <span>红涨绿跌。</span>
+      <span aria-label={`${label}交易制度`}>{tradingRule(market)}</span>
+      <span>{upDownLabel(market)}</span>
     </footer>
   );
 }
 
-/** 外壳与五个版次。测试里用 memory router 包住它即可。 */
+/**
+ * 外壳与五个版次。测试里用 memory router 包住它即可。
+ *
+ * 路由子树按市场换 key：切换市场后整棵子树重新挂载，各页按新市场重新取数，
+ * 不用逐个页面写刷新逻辑。
+ */
 export function AppRoutes() {
+  const { market } = useMarket();
+
   return (
-    <GlossaryProvider>
-      <div className="flex h-full min-h-0 flex-col bg-paper">
-        <Masthead />
-        <div className="min-h-0 flex-1">
+    <div className="flex h-full min-h-0 flex-col bg-paper">
+      <Masthead />
+      <div className="min-h-0 flex-1" key={market}>
+        <GlossaryProvider>
           <Routes>
             <Route path="/" element={<FlowPage />} />
             <Route path="/plan" element={<PlanPage />} />
@@ -154,17 +203,21 @@ export function AppRoutes() {
             <Route path="/journal" element={<JournalPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
-        </div>
-        <Colophon />
+        </GlossaryProvider>
       </div>
-    </GlossaryProvider>
+      <Colophon />
+    </div>
   );
 }
 
 export default function App() {
   return (
     <HashRouter>
-      <AppRoutes />
+      <MarketProvider>
+        <BeginnerModeProvider>
+          <AppRoutes />
+        </BeginnerModeProvider>
+      </MarketProvider>
     </HashRouter>
   );
 }

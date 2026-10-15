@@ -1,118 +1,115 @@
-//! `backfill` 模块：股票池筛选、分页抓取、日线回补与收盘后自动回补的判定。
+//! `backfill` 模块：股票池筛选、日线回补、前复权换算与收盘后自动回补的判定。
 //!
-//! 股票列表与日线样本取自 `tests/fixtures/`，来源 URL 见各测试注释。
+//! 用录制样本回放，不联网。
 
 use chrono::NaiveDate;
-use springload_core::backfill::{
-    self, MarketFetch, SyncOptions, SyncStatus, DEFAULT_CONCURRENCY,
-};
+use springload_core::backfill::{self, SyncOptions, SyncStatus, DEFAULT_CONCURRENCY};
 use springload_core::error::{CoreError, Result};
-use springload_core::market::eastmoney;
-use springload_core::storage::{bar, bar_sync_state, stock, Database};
+use springload_core::market::{Bar, Market, MinuteBar, QuoteSource, Security};
+use springload_core::storage::corporate_action::CorporateAction;
+use springload_core::storage::{bar, bar_sync_state, corporate_action, stock, Database};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-fn fixture(name: &str) -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures")
-        .join(name);
-    std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("读取样本 {name} 失败: {error}"))
-}
-
-/// 用录制样本回放的抓取实现。
-struct FixtureFetch {
-    pages: Vec<String>,
-    klines: HashMap<String, String>,
+/// 用录制样本回放的行情数据源。
+struct FixtureSource {
+    lists: Vec<Security>,
+    daily: HashMap<String, Vec<Bar>>,
+    events: HashMap<String, Vec<CorporateAction>>,
     requested_begs: Mutex<Vec<(String, String)>>,
 }
 
-impl FixtureFetch {
-    fn new(pages: Vec<String>, klines: HashMap<String, String>) -> Self {
+impl FixtureSource {
+    fn new() -> Self {
         Self {
-            pages,
-            klines,
+            lists: Vec::new(),
+            daily: HashMap::new(),
+            events: HashMap::new(),
             requested_begs: Mutex::new(Vec::new()),
         }
     }
-}
 
-impl MarketFetch for FixtureFetch {
-    fn clist_page(&self, page: u32, _page_size: u32) -> Result<String> {
-        self.pages
-            .get((page - 1) as usize)
-            .cloned()
-            .ok_or_else(|| CoreError::InvalidData(format!("没有第 {page} 页样本")))
+    fn with_list(mut self, rows: &[(&str, &str)]) -> Self {
+        self.lists.extend(rows.iter().map(|(code, name)| Security {
+            code: code.to_string(),
+            name: name.to_string(),
+        }));
+        self
     }
 
-    fn kline(&self, secid: &str, beg: &str) -> Result<String> {
+    fn with_daily(mut self, code: &str, bars: Vec<Bar>) -> Self {
+        self.daily.insert(code.to_string(), bars);
+        self
+    }
+
+    fn with_events(mut self, code: &str, events: Vec<CorporateAction>) -> Self {
+        self.events.insert(code.to_string(), events);
+        self
+    }
+}
+
+impl QuoteSource for FixtureSource {
+    fn security_list(&self) -> Result<Vec<Security>> {
+        Ok(self.lists.clone())
+    }
+
+    /// 真实行情源只回 `beg` 之后的日线，样本也照做——忽略 `beg` 会让增量回补这条
+    /// 路径测不出来。
+    fn daily_raw(&self, code: &str, beg: &str) -> Result<Vec<Bar>> {
         self.requested_begs
             .lock()
             .expect("记录锁")
-            .push((secid.to_string(), beg.to_string()));
-        self.klines
-            .get(secid)
+            .push((code.to_string(), beg.to_string()));
+        let from = NaiveDate::parse_from_str(beg, "%Y%m%d")
+            .map_err(|e| CoreError::InvalidData(format!("起始日期不是 YYYYMMDD: {e}")))?;
+        let bars = self
+            .daily
+            .get(code)
             .cloned()
-            .ok_or_else(|| CoreError::InvalidData(format!("没有 {secid} 的日线样本")))
+            .ok_or_else(|| CoreError::InvalidData(format!("没有 {code} 的日线样本")))?;
+        Ok(bars
+            .into_iter()
+            .filter(|bar| {
+                NaiveDate::parse_from_str(&bar.date, "%Y-%m-%d").is_ok_and(|date| date >= from)
+            })
+            .collect())
+    }
+
+    fn corporate_actions(&self, code: &str) -> Result<Vec<CorporateAction>> {
+        Ok(self.events.get(code).cloned().unwrap_or_default())
+    }
+
+    fn minute_bars(&self, _code: &str, _period: u32) -> Result<Vec<MinuteBar>> {
+        Ok(Vec::new())
     }
 }
 
-/// 由第 1 页样本里的真实行拼出的一份最小列表响应，只保留给定代码。
-///
-/// 只用于驱动回补流水线；完整页面的解析由 `market_test.rs` 用原始样本断言。
-fn clist_subset(codes: &[&str]) -> String {
-    clist_subset_with_total(codes, codes.len())
-}
-
-/// 同上，但把服务端报告的 `total` 改成给定值，用来构造条数不一致的响应。
-fn clist_subset_with_total(codes: &[&str], total: usize) -> String {
-    let mut value: serde_json::Value =
-        serde_json::from_str(&fixture("eastmoney_clist_page1.json")).expect("解析样本");
-    let diff = value["data"]["diff"].as_array_mut().expect("diff 是数组");
-    diff.retain(|row| {
-        codes
-            .iter()
-            .any(|code| row["f12"].as_str() == Some(*code))
-    });
-    assert_eq!(diff.len(), codes.len(), "样本里应能找齐给定代码");
-    value["data"]["total"] = serde_json::json!(total);
-    value.to_string()
-}
-
-fn kline_samples() -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    for code in ["605599", "605598", "605589"] {
-        map.insert(
-            format!("1.{code}"),
-            fixture(&format!("eastmoney_kline_{code}.json")),
-        );
+fn bar(code: &str, date: &str, close: f64) -> Bar {
+    Bar {
+        code: code.to_string(),
+        date: date.to_string(),
+        open: close,
+        high: close,
+        low: close,
+        close,
+        volume: 1_000_000.0,
+        amount: close * 1_000_000.0,
     }
-    map
+}
+
+fn event(code: &str, ex_date: &str, dividend_per_share: f64) -> CorporateAction {
+    CorporateAction {
+        code: code.to_string(),
+        ex_date: ex_date.to_string(),
+        dividend_per_share,
+        split_ratio: 0.0,
+        pre_close: None,
+        recorded_at: "2026-10-13T08:00:00Z".to_string(),
+    }
 }
 
 fn open_db(dir: &tempfile::TempDir) -> Database {
     Database::open(&dir.path().join("springload.db")).expect("打开数据库")
-}
-
-#[test]
-fn board_of_classifies_main_star_chinext_and_bse() {
-    for code in ["600000", "601398", "603188", "605599", "000001", "001309", "002388", "003037"] {
-        assert_eq!(backfill::board_of(code), Some("main"), "{code}");
-    }
-    assert_eq!(backfill::board_of("688981"), Some("star"));
-    assert_eq!(backfill::board_of("300750"), Some("chinext"));
-    assert_eq!(backfill::board_of("301660"), Some("chinext"));
-    assert_eq!(backfill::board_of("920821"), Some("bse"));
-    assert_eq!(backfill::board_of("900948"), None, "上海 B 股不在范围里");
-    assert_eq!(backfill::board_of("200530"), None, "深圳 B 股不在范围里");
-}
-
-#[test]
-fn market_of_maps_code_to_exchange() {
-    assert_eq!(backfill::market_of("600000"), "SH");
-    assert_eq!(backfill::market_of("688981"), "SH");
-    assert_eq!(backfill::market_of("000001"), "SZ");
-    assert_eq!(backfill::market_of("300750"), "SZ");
-    assert_eq!(backfill::market_of("920821"), "BJ");
 }
 
 #[test]
@@ -125,76 +122,74 @@ fn listed_cutoff_is_six_months_before() {
 }
 
 #[test]
-fn filter_universe_keeps_only_main_board_listed_six_months_without_st() {
-    let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
-    let row = |code: &str, name: &str, listed: Option<&str>| eastmoney::ClistRow {
-        code: code.to_string(),
-        market: if code.starts_with('6') { 1 } else { 0 },
-        name: name.to_string(),
-        listed_at: listed.map(str::to_string),
-        last: Some(10.0),
-        prev_close: Some(10.0),
-    };
+fn filter_universe_keeps_only_main_board_without_st() {
     let rows = vec![
-        row("600000", "浦发银行", Some("1999-11-10")),
-        row("000001", "平安银行", Some("1991-04-03")),
+        Security { code: "600000".into(), name: "浦发银行".into() },
+        Security { code: "000001".into(), name: "平安银行".into() },
         // ST 与 *ST 都排除。
-        row("600001", "ST 某股", Some("2000-01-01")),
-        row("600002", "*ST 某股", Some("2000-01-01")),
-        // 上市不足六个月。
-        row("600003", "新股", Some("2026-06-01")),
-        // 上市刚满六个月，保留。
-        row("600004", "临界股", Some("2026-04-13")),
+        Security { code: "600001".into(), name: "ST 某股".into() },
+        Security { code: "600002".into(), name: "*ST 某股".into() },
         // 科创板、创业板、北交所排除。
-        row("688981", "中芯国际", Some("2020-07-16")),
-        row("300750", "宁德时代", Some("2018-06-11")),
-        row("920821", "北交所股", Some("2021-01-01")),
-        // 缺少上市日，无法判断，排除。
-        row("600005", "无上市日", None),
+        Security { code: "688981".into(), name: "中芯国际".into() },
+        Security { code: "300750".into(), name: "宁德时代".into() },
+        Security { code: "920821".into(), name: "北交所股".into() },
+        // 指数与 B 股排除。
+        Security { code: "395001".into(), name: "主板Ａ股".into() },
+        Security { code: "900948".into(), name: "伊泰Ｂ股".into() },
     ];
-    let kept = backfill::filter_universe(&rows, today);
+    let kept = backfill::filter_universe(&rows, Market::Cn);
     let codes: Vec<&str> = kept.iter().map(|info| info.code.as_str()).collect();
-    assert_eq!(codes, vec!["600000", "000001", "600004"]);
+    assert_eq!(codes, vec!["600000", "000001"]);
 
     let first = &kept[0];
     assert_eq!(first.market, "SH");
     assert_eq!(first.board, "main");
     assert!(!first.is_st);
+    // 上市日要等抓到日线才知道。
+    assert_eq!(first.listed_at, None);
 }
 
 #[test]
-fn fetch_universe_pages_until_total_and_checks_count() {
-    let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
-    let fetch = FixtureFetch::new(vec![clist_subset(&["605599", "605598", "605589"])], HashMap::new());
-    let universe = backfill::fetch_universe(&fetch, today).expect("抓取股票池");
-    assert_eq!(universe.len(), 3);
+fn fetch_universe_reads_the_list_of_the_current_market() {
+    let source = FixtureSource::new()
+        .with_list(&[("600000", "浦发银行"), ("000001", "平安银行")]);
+    let universe = backfill::fetch_universe(&source, Market::Cn).expect("抓取股票池");
     let mut codes: Vec<&str> = universe.iter().map(|info| info.code.as_str()).collect();
     codes.sort();
-    assert_eq!(codes, vec!["605589", "605598", "605599"]);
+    assert_eq!(codes, vec!["000001", "600000"]);
 }
 
+/// 美股的证券目录已经筛过一遍，进池时只补上交易所与板块。
 #[test]
-fn fetch_universe_rejects_count_mismatch() {
-    let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
-    // 第二页为空，但服务端报告 5 条。
-    let empty_page = r#"{"rc":0,"data":{"total":5,"diff":[]}}"#.to_string();
-    let fetch = FixtureFetch::new(
-        vec![clist_subset_with_total(&["605599", "605598", "605589"], 5), empty_page],
-        HashMap::new(),
-    );
-    let error = backfill::fetch_universe(&fetch, today).expect_err("条数不一致应报错");
-    assert!(error.to_string().contains("3 条"), "{error}");
-    assert!(error.to_string().contains("5 条"), "{error}");
+fn us_universe_is_tagged_as_us_common_stock() {
+    let rows = vec![
+        Security { code: "AAPL".into(), name: "Apple Inc. - Common Stock".into() },
+        Security { code: "BRK.B".into(), name: "Berkshire Hathaway Inc. Class B Common Stock".into() },
+    ];
+    let kept = backfill::filter_universe(&rows, Market::Us);
+    let codes: Vec<&str> = kept.iter().map(|info| info.code.as_str()).collect();
+    assert_eq!(codes, vec!["AAPL", "BRK.B"]);
+    assert_eq!(kept[0].market, "US");
+    assert_eq!(kept[0].board, "common");
 }
 
 #[test]
 fn sync_market_writes_stocks_bars_and_sync_state() {
     let dir = tempfile::tempdir().unwrap();
     let db = open_db(&dir);
-    let fetch = FixtureFetch::new(
-        vec![clist_subset(&["605599", "605598", "605589"])],
-        kline_samples(),
-    );
+    let source = FixtureSource::new()
+        .with_list(&[("600000", "浦发银行")])
+        .with_daily(
+            "600000",
+            vec![
+                bar("600000", "2023-10-16", 10.0),
+                bar("600000", "2026-06-25", 20.0),
+                bar("600000", "2026-06-26", 18.0),
+                bar("600000", "2026-10-13", 19.0),
+            ],
+        )
+        // 2026-06-26 除息 2 元：这天之前的收盘价要减 2。
+        .with_events("600000", vec![event("600000", "2026-06-26", 2.0)]);
     let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
     let options = SyncOptions::with_today(true, today);
 
@@ -204,58 +199,132 @@ fn sync_market_writes_stocks_bars_and_sync_state() {
         sink_events.lock().expect("事件锁").push(status);
     });
 
-    let report = backfill::sync_market(&db, &fetch, &options, &sink).expect("同步成功");
-    assert_eq!(report.stocks, 3);
-    assert!(report.bars > 0);
+    let report = backfill::sync_market(&db, &source, Market::Cn, &options, &sink).expect("同步成功");
+    assert_eq!(report.stocks, 1);
+    assert_eq!(report.bars, 4);
     assert!(report.errors.is_empty(), "{:?}", report.errors);
 
     let conn = db.conn().unwrap();
-    assert_eq!(stock::count(&conn).unwrap(), 3);
-    assert!(stock::get(&conn, "605599").unwrap().is_some());
+    assert_eq!(stock::count(&conn).unwrap(), 1);
     assert!(bar::count(&conn).unwrap() > 0);
 
-    let bars = bar::list_for_code(&conn, "605599").unwrap();
-    assert!(!bars.is_empty());
-    assert_eq!(bars[0].date, "2026-09-01");
-    assert_eq!(bars.last().unwrap().date, "2026-10-13");
+    // 除权日之前的收盘价减掉每股分红，除权日当天与之后不动。
+    let bars = bar::list_for_code(&conn, "600000").unwrap();
+    assert_eq!(bars[0].date, "2023-10-16");
+    assert_eq!(bars[0].close, 8.0);
+    assert_eq!(bars[1].close, 18.0);
+    assert_eq!(bars[2].close, 18.0);
+    assert_eq!(bars[3].close, 19.0);
 
-    let state = bar_sync_state::get(&conn, "605599").unwrap().expect("有回补状态");
-    assert_eq!(state.dktotal, Some(1229));
-    assert!(state.last_bar_date.is_some());
-    let tail: serde_json::Value =
-        serde_json::from_str(state.tail_qfq.as_deref().expect("有尾部收盘价")).expect("尾部是 JSON");
-    assert_eq!(tail.as_array().unwrap().len(), 10);
+    // 除权除息事件写进了 `corporate_action`，除权日的前收盘价按参考价算出。
+    let actions = corporate_action::list_for_code(&conn, "600000").unwrap();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0].ex_date, "2026-06-26");
+    assert_eq!(actions[0].pre_close, Some(18.0), "20 元减 2 元分红");
+
+    let state = bar_sync_state::get(&conn, "600000").unwrap().expect("有回补状态");
+    assert_eq!(state.last_bar_date.as_deref(), Some("2026-10-13"));
 
     // 回补范围是最近三年。
-    let begs = fetch.requested_begs.lock().unwrap().clone();
-    assert_eq!(begs.len(), 3);
-    for (_, beg) in &begs {
-        assert_eq!(beg, "20231013");
-    }
+    let begs = source.requested_begs.lock().unwrap().clone();
+    assert_eq!(begs, vec![("600000".to_string(), "20230913".to_string())]);
 
     // 进度事件最后一条是终止状态。
     let events = events.lock().unwrap();
     assert!(!events.is_empty());
     let last = events.last().unwrap();
     assert!(!last.running);
-    assert_eq!(last.total, 3);
-    assert_eq!(last.done, 3);
+    assert_eq!(last.total, 1);
+    assert_eq!(last.done, 1);
     assert!(last.last_sync_at.is_some());
+}
+
+/// 三年窗口没被填满时最早那根日线就是上市首日；填满了说明上市已超过三年。
+#[test]
+fn listed_at_comes_from_the_earliest_bar() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open_db(&dir);
+    let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
+    let source = FixtureSource::new()
+        .with_list(&[("600000", "老股"), ("600004", "次新股")])
+        // 老股的三年窗口是填满的：行情源只回 `beg` 之后的日线，所以「填满」表现为
+        // 最早一根就落在窗口起点（2026-10-13 往前三年再多取一个月）上。
+        .with_daily(
+            "600000",
+            vec![bar("600000", "2023-09-13", 8.0), bar("600000", "2026-10-13", 12.0)],
+        )
+        .with_daily(
+            "600004",
+            vec![bar("600004", "2025-06-02", 30.0), bar("600004", "2026-10-13", 31.0)],
+        );
+
+    backfill::sync_market(
+        &db,
+        &source,
+        Market::Cn,
+        &SyncOptions::with_today(true, today),
+        &backfill::noop_sink(),
+    )
+    .expect("同步成功");
+
+    let conn = db.conn().unwrap();
+    assert_eq!(stock::get(&conn, "600000").unwrap().unwrap().listed_at, None);
+    assert_eq!(
+        stock::get(&conn, "600004").unwrap().unwrap().listed_at.as_deref(),
+        Some("2025-06-02")
+    );
+}
+
+/// 最早一根日线晚于六个月分界日的股票不进股票池，也不算失败。
+#[test]
+fn newly_listed_stocks_are_skipped() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open_db(&dir);
+    let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
+    let source = FixtureSource::new()
+        .with_list(&[("600000", "老股"), ("600003", "新股")])
+        .with_daily(
+            "600000",
+            vec![bar("600000", "2023-10-16", 10.0), bar("600000", "2026-10-13", 12.0)],
+        )
+        .with_daily(
+            "600003",
+            vec![bar("600003", "2026-06-01", 20.0), bar("600003", "2026-10-13", 21.0)],
+        );
+
+    let report = backfill::sync_market(
+        &db,
+        &source,
+        Market::Cn,
+        &SyncOptions::with_today(true, today),
+        &backfill::noop_sink(),
+    )
+    .expect("同步成功");
+    assert_eq!(report.stocks, 1);
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+
+    let conn = db.conn().unwrap();
+    assert!(stock::get(&conn, "600000").unwrap().is_some());
+    assert!(stock::get(&conn, "600003").unwrap().is_none(), "新股不进股票池");
+    assert!(bar::list_for_code(&conn, "600003").unwrap().is_empty());
 }
 
 #[test]
 fn incremental_sync_starts_from_last_bar_date() {
     let dir = tempfile::tempdir().unwrap();
     let db = open_db(&dir);
-    let fetch = FixtureFetch::new(
-        vec![clist_subset(&["605599"])],
-        kline_samples(),
-    );
+    let source = FixtureSource::new()
+        .with_list(&[("600000", "浦发银行")])
+        .with_daily(
+            "600000",
+            vec![bar("600000", "2023-10-16", 10.0), bar("600000", "2026-10-13", 12.0)],
+        );
     let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
 
     backfill::sync_market(
         &db,
-        &fetch,
+        &source,
+        Market::Cn,
         &SyncOptions::with_today(true, today),
         &backfill::noop_sink(),
     )
@@ -263,45 +332,55 @@ fn incremental_sync_starts_from_last_bar_date() {
 
     backfill::sync_market(
         &db,
-        &fetch,
+        &source,
+        Market::Cn,
         &SyncOptions::with_today(false, today),
         &backfill::noop_sink(),
     )
     .expect("增量同步");
 
-    let begs = fetch.requested_begs.lock().unwrap().clone();
-    assert_eq!(begs.len(), 2);
-    assert_eq!(begs[0].1, "20231013", "首次按三年回补");
+    let begs = source.requested_begs.lock().unwrap().clone();
+    assert_eq!(begs.len(), 2, "基准没变时不该多取一次");
+    assert_eq!(begs[0].1, "20230913", "首次按三年回补，另往前多取一个月");
     // 样本最后一根是 2026-10-13，增量从它开始。
     assert_eq!(begs[1].1, "20261013");
+
+    // 增量这一段确实写进去了，库里的历史仍然完整。
+    let conn = db.conn().unwrap();
+    let bars = bar::list_for_code(&conn, "600000").unwrap();
+    assert_eq!(bars.len(), 2, "增量之后历史应仍是两根");
+    assert_eq!(bars.last().unwrap().date, "2026-10-13");
+    let state = bar_sync_state::get(&conn, "600000").unwrap().expect("有回补状态");
+    assert_eq!(state.last_bar_date.as_deref(), Some("2026-10-13"));
 }
 
 #[test]
 fn sync_market_keeps_going_when_one_stock_fails() {
     let dir = tempfile::tempdir().unwrap();
     let db = open_db(&dir);
-    // 只提供两只股票的日线样本，第三只取不到。
-    let mut klines = kline_samples();
-    klines.remove("1.605589");
-    let fetch = FixtureFetch::new(
-        vec![clist_subset(&["605599", "605598", "605589"])],
-        klines,
-    );
+    // 只提供一只股票的日线样本，另一只取不到。
+    let source = FixtureSource::new()
+        .with_list(&[("600000", "浦发银行"), ("600001", "取不到日线")])
+        .with_daily(
+            "600000",
+            vec![bar("600000", "2023-10-16", 10.0), bar("600000", "2026-10-13", 12.0)],
+        );
     let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
     let report = backfill::sync_market(
         &db,
-        &fetch,
+        &source,
+        Market::Cn,
         &SyncOptions::with_today(true, today),
         &backfill::noop_sink(),
     )
     .expect("整体同步成功");
-    assert_eq!(report.stocks, 3);
+    assert_eq!(report.stocks, 1);
     assert_eq!(report.errors.len(), 1);
-    assert!(report.errors[0].contains("605589"), "{:?}", report.errors);
+    assert!(report.errors[0].contains("600001"), "{:?}", report.errors);
 
     let conn = db.conn().unwrap();
     assert!(bar::count(&conn).unwrap() > 0);
-    assert!(bar_sync_state::get(&conn, "605589").unwrap().is_none());
+    assert!(bar_sync_state::get(&conn, "600001").unwrap().is_none());
 }
 
 #[test]
@@ -317,12 +396,150 @@ fn auto_sync_runs_once_after_close() {
     let at_close = chrono::NaiveTime::from_hms_opt(15, 0, 0).unwrap();
     let after_close = chrono::NaiveTime::from_hms_opt(16, 30, 0).unwrap();
 
-    assert!(!backfill::should_run_auto_sync(before_close, today, None));
-    assert!(backfill::should_run_auto_sync(at_close, today, None));
-    assert!(backfill::should_run_auto_sync(after_close, today, None));
+    let cn_close = Market::Cn.close_time();
+    let us_close = Market::Us.close_time();
+    assert!(!backfill::should_run_auto_sync(before_close, cn_close, today, None));
+    assert!(backfill::should_run_auto_sync(at_close, cn_close, today, None));
+    assert!(backfill::should_run_auto_sync(after_close, cn_close, today, None));
     // 今天已经跑过就不再跑。
-    assert!(!backfill::should_run_auto_sync(after_close, today, Some(today)));
+    assert!(!backfill::should_run_auto_sync(after_close, cn_close, today, Some(today)));
     // 昨天跑过，今天照常跑。
     let yesterday = NaiveDate::from_ymd_opt(2026, 10, 12).unwrap();
-    assert!(backfill::should_run_auto_sync(after_close, today, Some(yesterday)));
+    assert!(backfill::should_run_auto_sync(after_close, cn_close, today, Some(yesterday)));
+    // 美股的收盘时间不同：15:00 还没收盘，16:30 已经收盘。
+    assert!(!backfill::should_run_auto_sync(at_close, us_close, today, None));
+    assert!(backfill::should_run_auto_sync(after_close, us_close, today, None));
+}
+
+/// 行情源把整段历史的价格换了个基准（拆股、或者改了复权口径）时，增量回补要能发现，
+/// 并把整段历史按新基准重写，接缝处不留台阶。
+#[test]
+fn a_price_basis_change_rewrites_the_whole_history() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open_db(&dir);
+    let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
+
+    // 第一次：价格在 10 元一线。
+    let before = FixtureSource::new().with_list(&[("600000", "浦发银行")]).with_daily(
+        "600000",
+        vec![
+            bar("600000", "2023-10-16", 10.0),
+            bar("600000", "2026-06-25", 20.0),
+            bar("600000", "2026-10-13", 19.0),
+        ],
+    );
+    backfill::sync_market(
+        &db,
+        &before,
+        Market::Cn,
+        &SyncOptions::with_today(true, today),
+        &backfill::noop_sink(),
+    )
+    .expect("首次同步");
+
+    // 第二次：行情源把整段历史的价格都砍半，相当于发生了 2 拆 1。
+    let after = FixtureSource::new().with_list(&[("600000", "浦发银行")]).with_daily(
+        "600000",
+        vec![
+            bar("600000", "2023-10-16", 5.0),
+            bar("600000", "2026-06-25", 10.0),
+            bar("600000", "2026-10-13", 9.5),
+        ],
+    );
+    backfill::sync_market(
+        &db,
+        &after,
+        Market::Cn,
+        &SyncOptions::with_today(false, today),
+        &backfill::noop_sink(),
+    )
+    .expect("增量同步");
+
+    // 第三次取数是整段重取，不是接着增量。
+    let begs = after.requested_begs.lock().unwrap().clone();
+    assert_eq!(begs.len(), 2);
+    assert_eq!(begs[0].1, "20261013", "增量那一次从最后一条日线开始");
+    assert_eq!(begs[1].1, "20230913", "发现基准变了之后重取整段");
+
+    let conn = db.conn().unwrap();
+    let bars = bar::list_for_code(&conn, "600000").unwrap();
+    let series: Vec<(String, f64)> = bars
+        .iter()
+        .map(|row| (row.date.clone(), row.close))
+        .collect();
+    assert_eq!(
+        series,
+        vec![
+            ("2023-10-16".to_string(), 5.0),
+            ("2026-06-25".to_string(), 10.0),
+            ("2026-10-13".to_string(), 9.5),
+        ],
+        "整段历史都换成新基准"
+    );
+}
+
+/// 除权除息让历史基准变了时同样要整体重写。这是 A 股那条路：事件落在窗口内，
+/// 重叠那一天的换算结果与库里对不上。
+#[test]
+fn a_new_corporate_action_rewrites_the_whole_history() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open_db(&dir);
+    let today = NaiveDate::from_ymd_opt(2026, 10, 14).unwrap();
+
+    // 最早一根要早于六个月分界日，否则会被当成次新股剔除。
+    let before = FixtureSource::new().with_list(&[("600000", "浦发银行")]).with_daily(
+        "600000",
+        vec![
+            bar("600000", "2026-01-05", 20.0),
+            bar("600000", "2026-06-25", 18.0),
+            bar("600000", "2026-10-13", 19.0),
+        ],
+    );
+    backfill::sync_market(
+        &db,
+        &before,
+        Market::Cn,
+        &SyncOptions::with_today(true, today),
+        &backfill::noop_sink(),
+    )
+    .expect("首次同步");
+
+    // 2026-10-14 除息 2 元，同时补上当天那根日线。
+    let after = FixtureSource::new()
+        .with_list(&[("600000", "浦发银行")])
+        .with_daily(
+            "600000",
+            vec![
+                bar("600000", "2026-01-05", 20.0),
+                bar("600000", "2026-06-25", 18.0),
+                bar("600000", "2026-10-13", 19.0),
+                bar("600000", "2026-10-14", 19.5),
+            ],
+        )
+        .with_events("600000", vec![event("600000", "2026-10-14", 2.0)]);
+    backfill::sync_market(
+        &db,
+        &after,
+        Market::Cn,
+        &SyncOptions::with_today(false, today),
+        &backfill::noop_sink(),
+    )
+    .expect("增量同步");
+
+    let conn = db.conn().unwrap();
+    let bars = bar::list_for_code(&conn, "600000").unwrap();
+    let series: Vec<(String, f64)> = bars
+        .iter()
+        .map(|row| (row.date.clone(), row.close))
+        .collect();
+    assert_eq!(
+        series,
+        vec![
+            ("2026-01-05".to_string(), 18.0),
+            ("2026-06-25".to_string(), 16.0),
+            ("2026-10-13".to_string(), 17.0),
+            ("2026-10-14".to_string(), 19.5),
+        ],
+        "除息日之前的历史整体减掉每股分红"
+    );
 }

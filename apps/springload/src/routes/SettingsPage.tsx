@@ -1,10 +1,11 @@
 import { useEffect, useState, useTransition } from "react";
-import { getAppInfo } from "../api/app";
+import type { Market } from "../api/app";
 import {
   getSettings,
   importBarsCsv,
   updateSettings,
   type ImportReport,
+  type MarketSettings,
   type Settings,
   type SettingsPatch,
 } from "../api/settings";
@@ -16,6 +17,8 @@ import { Button, StatefulButton } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Switch } from "../components/ui/switch";
 import { RiskNotesDialog, useBeginnerMode } from "../copy/BeginnerModeContext";
+import { useMarket } from "../copy/MarketContext";
+import { feeItems, tradingRule } from "../copy/riskNotes";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -26,35 +29,51 @@ function toPercent(value: number): number {
   return Number((value * 100).toFixed(6));
 }
 
-/** 成交额（元）显示成亿元，去掉浮点尾差。 */
-function toYi(value: number): number {
-  return Number((value / 1e8).toFixed(6));
+/**
+ * 成交额阈值的显示单位：A 股习惯用亿元，美股用百万美元。
+ *
+ * 两个市场的成交额量级差一个数量级，同一个输入框换个单位才不至于让人数一长串零。
+ */
+const LIQUIDITY_UNIT = {
+  cn: { label: "亿元", scale: 1e8 },
+  us: { label: "百万美元", scale: 1e6 },
+} as const;
+
+/** 成交额按当前市场的单位显示，去掉浮点尾差。 */
+function toLiquidityUnit(value: number, market: "cn" | "us"): number {
+  return Number((value / LIQUIDITY_UNIT[market].scale).toFixed(6));
 }
 
-/** 本页直接编辑的字段；小白模式由 context 立即写回，不在这里保存。 */
-function pagePatch(settings: Settings): SettingsPatch {
+/** 本页直接编辑的字段；小白模式由 context 立即写回，不在这里保存。
+ * 成交额下限与佣金费率随市场分开存，改的是当前市场那一份。 */
+function pagePatch(settings: Settings, market: Market): SettingsPatch {
+  const current: MarketSettings = market === "us" ? settings.us : settings.cn;
   return {
     riskPct: settings.riskPct,
     stopDistanceWarn: settings.stopDistanceWarn,
-    liquidityThreshold: settings.liquidityThreshold,
     chg6mThreshold: settings.chg6mThreshold,
     rankBand: settings.rankBand,
     convergenceThreshold: settings.convergenceThreshold,
     autostart: settings.autostart,
     feeModelEnabled: settings.feeModelEnabled,
-    commissionRate: settings.commissionRate,
-  };
+    [market]: current,
+  } as SettingsPatch;
 }
 
 /** 设置页：风险提示入口、筛选参数、数据源与同步面板、CSV 导入、小白模式开关。 */
 export default function SettingsPage() {
   const { beginnerMode, setBeginnerMode } = useBeginnerMode();
+  const { market, info } = useMarket();
+  const unit = LIQUIDITY_UNIT[market];
 
   const [saved, setSaved] = useState<Settings | null>(null);
   const [draft, setDraft] = useState<Settings | null>(null);
-  const [dataSource, setDataSource] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
+
+  /** 当前市场那一份参数：成交额下限与佣金费率。 */
+  const current: MarketSettings | null =
+    draft === null ? null : market === "us" ? draft.us : draft.cn;
 
   const [csvPath, setCsvPath] = useState("");
   const [importing, startImporting] = useTransition();
@@ -73,13 +92,6 @@ export default function SettingsPage() {
       })
       .catch((err: unknown) => {
         if (alive) setError(message(err));
-      });
-    getAppInfo()
-      .then((info) => {
-        if (alive) setDataSource(info.dataSource);
-      })
-      .catch(() => {
-        if (alive) setDataSource(null);
       });
     return () => {
       alive = false;
@@ -107,14 +119,21 @@ export default function SettingsPage() {
     );
   }
 
-  const dirty = JSON.stringify(pagePatch(draft)) !== JSON.stringify(pagePatch(saved));
+  const dirty =
+    JSON.stringify(pagePatch(draft, market)) !== JSON.stringify(pagePatch(saved, market));
 
   const patch = (changes: Partial<Settings>) => setDraft({ ...draft, ...changes });
+
+  /** 改当前市场那一份参数。 */
+  const patchMarket = (changes: Partial<MarketSettings>) => {
+    const key = market === "us" ? "us" : "cn";
+    patch({ [key]: { ...draft[key], ...changes } } as Partial<Settings>);
+  };
 
   const save = () => {
     startSaving(async () => {
       try {
-        const next = await updateSettings(pagePatch(draft));
+        const next = await updateSettings(pagePatch(draft, market));
         setSaved(next);
         setDraft(next);
         setError(null);
@@ -187,11 +206,11 @@ export default function SettingsPage() {
             onChange={(value) => patch({ stopDistanceWarn: Number(value) / 100 })}
           />
           <Input
-            label="流动性阈值（亿元）"
+            label={`流动性阈值（${unit.label}）`}
             type="number"
             step="0.1"
-            value={String(toYi(draft.liquidityThreshold))}
-            onChange={(value) => patch({ liquidityThreshold: Number(value) * 1e8 })}
+            value={String(toLiquidityUnit(current?.liquidityThreshold ?? 0, market))}
+            onChange={(value) => patchMarket({ liquidityThreshold: Number(value) * unit.scale })}
           />
           <Input
             label="近 6 个月涨幅阈值（%）"
@@ -222,20 +241,23 @@ export default function SettingsPage() {
             onChange={(value) => patch({ convergenceThreshold: Number(value) / 100 })}
           />
           <Input
-            label="佣金费率（%，含单笔最低 5 元）"
+            label={
+              market === "us" ? "佣金费率（%）" : "佣金费率（%，含单笔最低 5 元）"
+            }
             type="number"
             step="0.001"
             min="0"
-            value={String(toPercent(draft.commissionRate))}
-            onChange={(value) => patch({ commissionRate: Number(value) / 100 })}
+            value={String(toPercent(current?.commissionRate ?? 0))}
+            onChange={(value) => patchMarket({ commissionRate: Number(value) / 100 })}
           />
         </div>
         <p className="text-note text-ink-soft">
-          费用模型默认关闭。开启后按印花税、过户费、经手费、证管费与佣金逐笔扣减。
+          费用模型默认关闭。开启后按{feeItems(market)}逐笔扣减
+          {market === "us" ? "，没有印花税与各项规费，也没有最低佣金。" : "。"}
         </p>
 
         <SectionHead>数据源与回补</SectionHead>
-        <Input label="数据源" value={dataSource ?? "未取到"} readOnly />
+        <Input label="数据源" value={info?.dataSource ?? "未取到"} readOnly />
 
         <SyncPanel />
 
@@ -299,7 +321,7 @@ export default function SettingsPage() {
           <AlertIcon />
           <AlertContent>
             <AlertDescription>
-              仓位计算结果为理论值，未计入交易成本与滑点；A 股 T+1 制度下当日买入无法当日卖出。
+              仓位计算结果为理论值，未计入交易成本与滑点；{tradingRule(market)}
             </AlertDescription>
           </AlertContent>
         </Alert>

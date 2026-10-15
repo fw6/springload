@@ -1,10 +1,14 @@
-//! 持仓跟踪：三类离场提示、T+1 的可执行日与持仓列表。
+//! 持仓跟踪：三类离场提示、可执行日与持仓列表。
 //!
 //! 三类提示互不排斥，一次刷新可能同时给出多条。提示只描述已经发生的事与计划里的
 //! 数字，不给买卖结论。
+//!
+//! 可执行日随市场变：A 股是 T+1，最早也要到买入日的次一交易日；美股当日可卖，
+//! 观察到条件的那一天就能执行。
 
 use crate::error::Result;
 use crate::indicators;
+use crate::market::Market;
 use crate::storage::bar::{self, BarRow};
 use crate::storage::position::{self, Position};
 use crate::storage::stock;
@@ -82,10 +86,19 @@ pub fn next_trading_day(calendar: &[String], date: &str) -> String {
     next_weekday(date)
 }
 
-/// 可执行日：不早于买入日的次一交易日。
+/// 可执行日：最早可以按提示卖出的那一天。
 ///
-/// 信号日已经晚于那个日子时就是信号日本身。
-pub fn executable_date(calendar: &[String], entry_date: &str, signal_date: &str) -> String {
+/// A 股 T+1，不早于买入日的次一交易日，信号日已经晚于那个日子时就是信号日本身。
+/// 美股 T+0，信号日当天就能执行。
+pub fn executable_date(
+    calendar: &[String],
+    entry_date: &str,
+    signal_date: &str,
+    market: Market,
+) -> String {
+    if !market.t_plus_one() {
+        return signal_date.to_string();
+    }
     let earliest = next_trading_day(calendar, entry_date);
     if signal_date >= earliest.as_str() {
         signal_date.to_string()
@@ -109,6 +122,7 @@ fn next_weekday(date: &str) -> String {
 /// 三类提示的判定。条件同时成立时全部返回。
 ///
 /// 传入的价格与均线都可能是 `None`（没有行情或日线不足），此时对应的提示不产生。
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate(
     stop: f64,
     t3: f64,
@@ -119,12 +133,13 @@ pub fn evaluate(
     calendar: &[String],
     entry_date: &str,
     signal_date: &str,
+    market: Market,
 ) -> Vec<Alert> {
     let mut alerts = Vec::new();
     let Some(last) = last else {
         return alerts;
     };
-    let executable = executable_date(calendar, entry_date, signal_date);
+    let executable = executable_date(calendar, entry_date, signal_date, market);
 
     let mut push = |kind: AlertKind, message: &str| {
         alerts.push(Alert {
@@ -171,29 +186,33 @@ fn ema9_of(bars: &[BarRow]) -> Option<f64> {
 }
 
 /// 读全部未平仓持仓，用已入库的日线当最新价（没有实时快照时的兜底）。
-pub fn list_positions(db: &Database) -> Result<Vec<PositionView>> {
+pub fn list_positions(db: &Database, market: Market) -> Result<Vec<PositionView>> {
     let conn = db.conn()?;
     let calendar = bar::trading_days(&conn)?;
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let today = market.local_now().format("%Y-%m-%d").to_string();
     let mut out = Vec::new();
     for row in position::list_open(&conn)? {
-        out.push(build_view(&conn, &row, &calendar, &today, None)?);
+        out.push(build_view(&conn, &row, &calendar, &today, None, market)?);
     }
     Ok(out)
 }
 
 /// 用实时快照刷新持仓的最新价，并给出提示。
-pub fn refresh_positions(db: &Database, quotes: &[(String, f64)]) -> Result<Vec<PositionView>> {
+pub fn refresh_positions(
+    db: &Database,
+    quotes: &[(String, f64)],
+    market: Market,
+) -> Result<Vec<PositionView>> {
     let conn = db.conn()?;
     let calendar = bar::trading_days(&conn)?;
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let today = market.local_now().format("%Y-%m-%d").to_string();
     let mut out = Vec::new();
     for row in position::list_open(&conn)? {
         let quote = quotes
             .iter()
             .find(|(code, _)| code == &row.code)
             .map(|(_, price)| *price);
-        out.push(build_view(&conn, &row, &calendar, &today, quote)?);
+        out.push(build_view(&conn, &row, &calendar, &today, quote, market)?);
     }
     Ok(out)
 }
@@ -203,10 +222,9 @@ pub fn refresh_positions(db: &Database, quotes: &[(String, f64)]) -> Result<Vec<
 /// 主来源是腾讯 `qt.gtimg.cn`，取不到时切到新浪 `hq.sinajs.cn` 这个备用来源。
 /// 两家的批量上限与 URL 长度上限不同，各自按自己的约束切分；腾讯对不存在的代码
 /// 整条省略，新浪返回空占位，两家的结果都按代码字段配对，不按位置对应。
-pub fn fetch_quotes(codes: &[String]) -> Result<Vec<(String, f64)>> {
+pub fn fetch_quotes(codes: &[String], market: Market) -> Result<Vec<(String, f64)>> {
     use crate::error::CoreError;
     use crate::market::{sina, tencent};
-    use std::io;
     use std::time::Duration;
 
     if codes.is_empty() {
@@ -216,17 +234,17 @@ pub fn fetch_quotes(codes: &[String]) -> Result<Vec<(String, f64)>> {
         .connect_timeout(Duration::from_secs(15))
         .timeout(Duration::from_secs(30))
         .build()
-        .map_err(|error| CoreError::Io(io::Error::other(format!("构建 HTTP 客户端失败: {error}"))))?;
+        .map_err(|error| CoreError::Network(format!("构建 HTTP 客户端失败: {error}")))?;
 
     let mut out = Vec::new();
     for batch in tencent::snapshot_batches(codes) {
-        match tencent_quotes(&client, &batch) {
+        match tencent_quotes(&client, &batch, market) {
             Ok(quotes) => out.extend(quotes),
             Err(error) => {
                 eprintln!("腾讯快照不可用，改用新浪: {error}");
                 // 新浪的批量上限比腾讯小，切过去时要按新浪的约束重新分批。
                 for sina_batch in sina::list_batches(&batch) {
-                    out.extend(sina_quotes(&client, &sina_batch)?);
+                    out.extend(sina_quotes(&client, &sina_batch, market)?);
                 }
             }
         }
@@ -238,15 +256,17 @@ pub fn fetch_quotes(codes: &[String]) -> Result<Vec<(String, f64)>> {
 fn tencent_quotes(
     client: &reqwest::blocking::Client,
     batch: &[String],
+    market: Market,
 ) -> Result<Vec<(String, f64)>> {
-    use crate::error::CoreError;
+    use crate::error::{describe_request_error, CoreError};
     use crate::market::tencent;
-    use std::io;
 
     let response = client
-        .get(tencent::snapshot_url(batch))
+        .get(tencent::snapshot_url(batch, market))
         .send()
-        .map_err(|error| CoreError::Io(io::Error::other(format!("请求腾讯快照失败: {error}"))))?;
+        .map_err(|error| {
+            CoreError::Network(format!("请求腾讯快照失败: {}", describe_request_error(error)))
+        })?;
     let status = response.status();
     if !status.is_success() {
         return Err(CoreError::InvalidData(format!(
@@ -256,9 +276,9 @@ fn tencent_quotes(
     }
     let bytes = response
         .bytes()
-        .map_err(|error| CoreError::Io(io::Error::other(format!("读取腾讯快照失败: {error}"))))?;
+        .map_err(|error| CoreError::Network(format!("读取腾讯快照失败: {error}")))?;
     let (body, _, _) = encoding_rs::GB18030.decode(&bytes);
-    Ok(tencent::parse_snapshots(&body)?
+    Ok(tencent::parse_snapshots(&body, market)?
         .into_iter()
         .map(|snapshot| (snapshot.code, snapshot.last))
         .collect())
@@ -268,16 +288,18 @@ fn tencent_quotes(
 fn sina_quotes(
     client: &reqwest::blocking::Client,
     batch: &[String],
+    market: Market,
 ) -> Result<Vec<(String, f64)>> {
-    use crate::error::CoreError;
+    use crate::error::{describe_request_error, CoreError};
     use crate::market::sina;
-    use std::io;
 
     let response = client
-        .get(sina::list_url(batch))
+        .get(sina::list_url(batch, market))
         .header(reqwest::header::REFERER, sina::REFERER)
         .send()
-        .map_err(|error| CoreError::Io(io::Error::other(format!("请求新浪快照失败: {error}"))))?;
+        .map_err(|error| {
+            CoreError::Network(format!("请求新浪快照失败: {}", describe_request_error(error)))
+        })?;
     let status = response.status();
     if !status.is_success() {
         return Err(CoreError::InvalidData(format!(
@@ -287,8 +309,8 @@ fn sina_quotes(
     }
     let bytes = response
         .bytes()
-        .map_err(|error| CoreError::Io(io::Error::other(format!("读取新浪快照失败: {error}"))))?;
-    Ok(sina::parse_snapshots(&sina::decode(&bytes))?
+        .map_err(|error| CoreError::Network(format!("读取新浪快照失败: {error}")))?;
+    Ok(sina::parse_snapshots(&sina::decode(&bytes), market)?
         .into_iter()
         .map(|snapshot| (snapshot.code, snapshot.last))
         .collect())
@@ -301,6 +323,7 @@ fn build_view(
     calendar: &[String],
     signal_date: &str,
     quote: Option<f64>,
+    market: Market,
 ) -> Result<PositionView> {
     let plan = trade_plan::get(conn, &row.plan_id)?;
     let per_r = plan
@@ -328,6 +351,7 @@ fn build_view(
         calendar,
         &row.entry_date,
         signal_date,
+        market,
     );
     Ok(PositionView {
         id: row.id.clone(),
@@ -450,14 +474,41 @@ mod tests {
         let days = calendar();
         // 当天买入当天出信号：可执行日推到次一交易日。
         assert_eq!(
-            executable_date(&days, "2026-10-13", "2026-10-13"),
+            executable_date(&days, "2026-10-13", "2026-10-13", Market::Cn),
             "2026-10-14"
         );
         // 信号日已经晚于次一交易日时用信号日本身。
         assert_eq!(
-            executable_date(&days, "2026-10-13", "2026-10-16"),
+            executable_date(&days, "2026-10-13", "2026-10-16", Market::Cn),
             "2026-10-16"
         );
+    }
+
+    #[test]
+    fn us_positions_can_be_sold_the_same_day() {
+        let days = calendar();
+        // 美股 T+0：当天买入当天出信号，可执行日就是当天。
+        assert_eq!(
+            executable_date(&days, "2026-10-13", "2026-10-13", Market::Us),
+            "2026-10-13"
+        );
+        let alerts = evaluate(
+            19.5,
+            21.5,
+            22.5,
+            Some(19.4),
+            Some(19.8),
+            true,
+            &days,
+            "2026-10-13",
+            "2026-10-13",
+            Market::Us,
+        );
+        let stop = alerts
+            .iter()
+            .find(|alert| alert.kind == AlertKind::StopLoss)
+            .expect("跌破止损价应给出提示");
+        assert_eq!(stop.executable_date, "2026-10-13");
     }
 
     #[test]
@@ -473,6 +524,7 @@ mod tests {
             &days,
             "2026-10-13",
             "2026-10-14",
+            Market::Cn,
         );
         assert!(alerts.iter().any(|alert| alert.kind == AlertKind::StopLoss));
         let stop = alerts
@@ -496,6 +548,7 @@ mod tests {
             &days,
             "2026-10-13",
             "2026-10-14",
+            Market::Cn,
         );
         assert!(with_follow.iter().any(|alert| alert.kind == AlertKind::BelowEma9));
 
@@ -509,6 +562,7 @@ mod tests {
             &days,
             "2026-10-13",
             "2026-10-14",
+            Market::Cn,
         );
         assert!(without_follow.is_empty());
     }
@@ -526,6 +580,7 @@ mod tests {
             &days,
             "2026-10-13",
             "2026-10-14",
+            Market::Cn,
         );
         assert!(at_3r.iter().any(|alert| alert.kind == AlertKind::Reduce3R));
         assert!(!at_3r.iter().any(|alert| alert.kind == AlertKind::Reduce5R));
@@ -540,6 +595,7 @@ mod tests {
             &days,
             "2026-10-13",
             "2026-10-14",
+            Market::Cn,
         );
         assert!(at_5r.iter().any(|alert| alert.kind == AlertKind::Reduce5R));
         assert!(!at_5r.iter().any(|alert| alert.kind == AlertKind::Reduce3R));
@@ -558,6 +614,7 @@ mod tests {
             &days,
             "2026-10-13",
             "2026-10-14",
+            Market::Cn,
         );
         assert!(alerts.is_empty());
     }
