@@ -1,0 +1,65 @@
+.github/workflows/release.yml
+  s_0f3205fec62200::t_4f321113199714 1-90
+apps/springload/src/index.css
+  s_0f3205fec62200::t_b98c41d35cb195 45-50,134-223
+apps/springload/src/components/ui/tooltip/positioner.tsx
+  s_0f3205fec62200::t_d6c27d717dcd1d 8-13,16,19
+apps/springload/src/components/components.test.tsx
+  s_0f3205fec62200::t_df6291ccb163fb 36-37,41,46-48
+  s_0f3205fec62200::t_d6fc19e1f18ab3 2,21-29,33-35,39-40,42
+  s_0f3205fec62200::t_226a3f0fbc614e 30-32
+  s_0f3205fec62200::t_7c53bef50449c8 38
+apps/springload/src/lib/hooks/use-presence.ts
+  s_0f3205fec62200::t_997956ca362a52 1-28
+apps/springload/src/lib/not-bundled.ts
+  s_0f3205fec62200::t_0780ce32f74bc2 1-8
+apps/springload/src/flow/FlowPage.tsx
+  s_0f3205fec62200::t_735b9d1bb0d7bf 133,135,142
+apps/springload/PRODUCT.md
+  s_0f3205fec62200::t_b98c41d35cb195 26-27,91-92
+apps/springload/src/lib/hooks/use-presence.test.ts
+  s_0f3205fec62200::t_9332b9a8e9af53 1-49
+apps/springload/src/lib/hooks/use-reduced-motion.ts
+  s_0f3205fec62200::t_298eb5a69953e3 1-25
+apps/springload/src/components/ui/dialog.test.tsx
+  s_0f3205fec62200::t_174152dc553e84 34,44
+  s_0f3205fec62200::t_d737e3cc03e785 1-33,35-43,45-51
+.github/workflows/ci.yml
+  s_0f3205fec62200::t_87d3f1c6bbd02d 45-47
+  s_0f3205fec62200::t_04147b438041c2 1
+apps/springload/src/components/ui/tooltip-surface.tsx
+  s_0f3205fec62200::t_2df2137ec6a8f4 13,16,21-22,25,27,30,34,40
+apps/springload/src/components/ui/dialog.tsx
+  s_0f3205fec62200::t_4562783840ca25 4-5,8
+  s_0f3205fec62200::t_6e3be83919892e 50,54-55,57
+  s_0f3205fec62200::t_2c8cddd910310a 110-129
+apps/springload/src/components/ui/tooltip.tsx
+  s_0f3205fec62200::t_963d29786dc898 26,41-42
+  s_0f3205fec62200::t_52a60389364dbd 576-578,594-628
+apps/springload/vite.config.ts
+  s_0f3205fec62200::t_54ee883deb683e 8-10,16-21
+apps/springload/src/lib/not-bundled.test.ts
+  s_0f3205fec62200::t_b9ef7f6108350c 1-2,4,6-23
+  s_0f3205fec62200::t_e3daf50ffe3dc3 3,5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.49-trip",
+  "base_commit_sha": "3ab59cbcd6cc8128fc0f4c71f61c5e7d5d4d2f71",
+  "prompts": {},
+  "humans": {
+    "h_212141a2d9d4c8": {
+      "author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_0f3205fec62200": {
+      "agent_id": {
+        "tool": "zcode",
+        "id": "sess_404273a4-d73e-4c28-ba7a-893707190efb",
+        "model": "claude-deepseek-v4.1-flash[1M]"
+      },
+      "human_author": "mekhi <lyman.von9506@gmail.com>"
+    }
+  }
+}
