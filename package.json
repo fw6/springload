@@ -7,6 +7,7 @@
     "build": "pnpm --filter springload build",
     "tauri": "pnpm --filter springload tauri",
     "check": "pnpm --filter springload exec tsc --noEmit",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "test:rust": "cargo test --workspace"
   }
 }

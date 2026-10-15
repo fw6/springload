@@ -1,22 +1,38 @@
 import { invoke } from "./invoke";
+import type { Market } from "./app";
+
+/** 随市场变化的一组参数。 */
+export interface MarketSettings {
+  /** 日均成交额下限，单位是本市场的货币。 */
+  liquidityThreshold: number;
+  /** 佣金费率。 */
+  commissionRate: number;
+}
 
 /** 全局配置，字段与 `~/.springload/springload.config.json` 一致。 */
 export interface Settings {
+  /** 当前市场。 */
+  market: Market;
   riskPct: number;
   stopDistanceWarn: number;
-  liquidityThreshold: number;
   chg6mThreshold: number;
   rankBand: [number, number];
   convergenceThreshold: number;
   beginnerMode: boolean;
   autostart: boolean;
   feeModelEnabled: boolean;
-  commissionRate: number;
   firstRunConfirmed: boolean;
+  /** A 股的参数。 */
+  cn: MarketSettings;
+  /** 美股的参数。 */
+  us: MarketSettings;
 }
 
 /** 只带要改的字段。 */
-export type SettingsPatch = Partial<Settings>;
+export interface SettingsPatch extends Partial<Omit<Settings, "cn" | "us">> {
+  cn?: MarketSettings;
+  us?: MarketSettings;
+}
 
 /** `import_bars_csv` 命令的返回：写入行数、跳过行数与逐条错误。 */
 export interface ImportReport {

@@ -4,8 +4,8 @@
 
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
-use springload_core::backfill::{self, HttpFetch, SyncOptions, SyncReport, SyncStatus};
-use springload_core::market::Bar;
+use springload_core::backfill::{self, SyncOptions, SyncReport, SyncStatus};
+use springload_core::market::{Bar, Market};
 use springload_core::storage::{bar, bar_minute, bar_sync_state, stock};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -42,22 +42,24 @@ impl From<stock::Stock> for StockRow {
     }
 }
 
-/// 抓股票列表并回补日线。同步过程中通过 `sync://progress` 事件推送进度。
+/// 抓当前市场的股票列表并回补日线。同步过程中通过 `sync://progress` 事件推送进度。
 #[tauri::command]
 pub async fn sync_market<R: tauri::Runtime>(
     app: AppHandle<R>,
     state: State<'_, AppState>,
     full: bool,
 ) -> Result<SyncReport, String> {
-    let db = state.db().clone();
+    let db = state.db();
+    let market = state.market();
+    let source = state.source();
     tauri::async_runtime::spawn_blocking(move || {
-        let fetch = HttpFetch::new().map_err(|error| error.to_string())?;
         let sink: backfill::ProgressSink = Arc::new(move |status: SyncStatus| {
             backfill::publish(&status);
             let _ = app.emit(SYNC_PROGRESS_EVENT, status);
         });
         let options = SyncOptions::new(full);
-        backfill::sync_market(&db, &fetch, &options, &sink).map_err(|error| error.to_string())
+        backfill::sync_market(&db, source.as_ref(), market, &options, &sink)
+            .map_err(|error| error.to_string())
     })
     .await
     .map_err(|error| error.to_string())?
@@ -100,11 +102,34 @@ pub fn bars_get(
 }
 
 /// 起收盘后自动回补的定时任务。由 `app.rs` 的装配过程调用一次。
+///
+/// 每轮都重新问一次当前是哪个市场，切到美股之后这一轮就跟着切过去。收盘时间按
+/// 市场当地时间算：A 股 15:00，美股 16:00。
 pub fn start_scheduler<R: tauri::Runtime>(app: AppHandle<R>) {
-    let db = app.state::<AppState>().db().clone();
-    let sink: backfill::ProgressSink = Arc::new(move |status: SyncStatus| {
-        backfill::publish(&status);
-        let _ = app.emit(SYNC_PROGRESS_EVENT, status);
+    std::thread::spawn(move || {
+        let mut last_run: Option<(Market, chrono::NaiveDate)> = None;
+        loop {
+            let state = app.state::<AppState>();
+            let market = state.market();
+            let now = market.local_now();
+            let previous = last_run
+                .as_ref()
+                .filter(|(ran_market, _)| *ran_market == market)
+                .map(|(_, day)| *day);
+            if backfill::should_run_auto_sync(now.time(), market.close_time(), now.date(), previous) {
+                let db = state.db();
+                let source = state.source();
+                let handle = app.clone();
+                let sink: backfill::ProgressSink = Arc::new(move |status: SyncStatus| {
+                    backfill::publish(&status);
+                    let _ = handle.emit(SYNC_PROGRESS_EVENT, status);
+                });
+                let options = SyncOptions::new(false);
+                if backfill::sync_market(&db, source.as_ref(), market, &options, &sink).is_ok() {
+                    last_run = Some((market, now.date()));
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_secs(60));
+        }
     });
-    backfill::spawn_daily_scheduler(db, sink);
 }

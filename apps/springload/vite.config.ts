@@ -1,15 +1,24 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
+// jsPDF 的 `html()` 与 `svg()` 动态 import 的三个可选依赖指到这里（见该文件说明）。
+const NOT_BUNDLED = fileURLToPath(new URL("./src/lib/not-bundled.ts", import.meta.url));
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
 
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      html2canvas: NOT_BUNDLED,
+      canvg: NOT_BUNDLED,
+      dompurify: NOT_BUNDLED,
+    },
   },
 
   clearScreen: false,

@@ -6,7 +6,7 @@
 use crate::commands::zone::SupportZoneView;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
-use springload_core::minute::{self, HttpMinuteFetch, PollReport, PERIOD_1M};
+use springload_core::minute::{self, PollReport, PERIOD_1M};
 use springload_core::signal::{self, Stage};
 use springload_core::storage::support_zone::SupportZone;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -89,38 +89,59 @@ pub fn signal_status(state: State<'_, AppState>, code: String) -> Result<SignalS
 }
 
 /// 抓一次这只股票的当日 1 分钟线，再判定触发；触发时写进 `signal` 表。
+///
+/// 抓分钟线要走网络，放在主线程上会把窗口冻住，所以挪到线程池。
 #[tauri::command]
-pub fn signal_evaluate(
+pub async fn signal_evaluate(
     state: State<'_, AppState>,
     code: String,
 ) -> Result<SignalStatusView, String> {
-    let mut conn = state.db().conn().map_err(|error| error.to_string())?;
-    let fetch = HttpMinuteFetch::new().map_err(|error| error.to_string())?;
-    minute::refresh_minute_bars(&mut conn, &fetch, &code, PERIOD_1M)
-        .map_err(|error| error.to_string())?;
-    let status = signal::evaluate(&conn, &code).map_err(|error| error.to_string())?;
-    if let Some(trigger) = &status.trigger {
-        signal::record_trigger(&conn, &code, status.zone.as_ref(), trigger)
+    let db = state.db();
+    let source = state.source();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = db.conn().map_err(|error| error.to_string())?;
+        minute::refresh_minute_bars(&mut conn, source.as_ref(), &code, PERIOD_1M)
             .map_err(|error| error.to_string())?;
-    }
-    SignalStatusView::build(&conn, &code, status)
+        let status = signal::evaluate(&conn, &code).map_err(|error| error.to_string())?;
+        if let Some(trigger) = &status.trigger {
+            signal::record_trigger(&conn, &code, status.zone.as_ref(), trigger)
+                .map_err(|error| error.to_string())?;
+        }
+        SignalStatusView::build(&conn, &code, status)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /// 手动跑一轮轮询：刷新等待触发的股票与持仓的当日 1 分钟线，判定触发。
 #[tauri::command]
-pub fn poll_tick(state: State<'_, AppState>) -> Result<PollReport, String> {
-    let mut conn = state.db().conn().map_err(|error| error.to_string())?;
-    let fetch = HttpMinuteFetch::new().map_err(|error| error.to_string())?;
-    minute::poll_once(&mut conn, &fetch).map_err(|error| error.to_string())
+pub async fn poll_tick(state: State<'_, AppState>) -> Result<PollReport, String> {
+    let db = state.db();
+    let source = state.source();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = db.conn().map_err(|error| error.to_string())?;
+        minute::poll_once(&mut conn, source.as_ref()).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /// 启动每分钟一次的轮询，每轮结束推一条 `poll://tick`。
+///
+/// 每轮都重新问一次当前是哪个市场，切到美股之后这一轮就跟着切过去。单轮失败只跳过
+/// 这一轮，不终止循环；数据源在下一轮重新建。
 pub fn start_scheduler<R: tauri::Runtime>(app: AppHandle<R>) {
-    let db = app.state::<AppState>().db().clone();
-    let sink: minute::PollSink = std::sync::Arc::new(move |report: PollReport| {
-        let _ = app.emit(POLL_TICK_EVENT, report);
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        let state = app.state::<AppState>();
+        let Ok(mut conn) = state.db().conn() else {
+            continue;
+        };
+        let source = state.source();
+        if let Ok(report) = minute::poll_once(&mut conn, source.as_ref()) {
+            let _ = app.emit(POLL_TICK_EVENT, report);
+        }
     });
-    minute::spawn_poll_scheduler(db, sink);
 }
 
 /// 把一条支撑区行转成对外形状，供测试与命令层复用。

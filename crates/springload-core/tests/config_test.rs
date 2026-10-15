@@ -1,6 +1,7 @@
 //! `config` 模块的行为：默认值、往返读写、缺失补齐、非法回落。
 
 use springload_core::config::{self, Settings, SettingsPatch};
+use springload_core::market::Market;
 use std::io::Write;
 
 fn temp_dir() -> tempfile::TempDir {
@@ -21,15 +22,20 @@ fn default_settings_match_the_contract() {
     let s = Settings::default();
     assert_eq!(s.risk_pct, 0.005);
     assert_eq!(s.stop_distance_warn, 0.05);
-    assert_eq!(s.liquidity_threshold, 1e8);
+    assert_eq!(s.cn.liquidity_threshold, 1e8);
     assert_eq!(s.chg_6m_threshold, 0.30);
     assert_eq!(s.rank_band, (0.20, 0.30));
     assert_eq!(s.convergence_threshold, 0.25);
     assert!(s.beginner_mode);
     assert!(!s.autostart);
     assert!(!s.fee_model_enabled);
-    assert_eq!(s.commission_rate, 0.00025);
     assert!(!s.first_run_confirmed);
+    // 随市场变化的两项按市场各存一份。
+    assert_eq!(s.market, Market::Cn);
+    assert_eq!(s.cn.commission_rate, 0.00025);
+    assert_eq!(s.us.liquidity_threshold, 2e7);
+    assert_eq!(s.us.commission_rate, 0.0);
+    assert_eq!(s.current(), s.cn, "默认市场是 A 股");
 }
 
 #[test]
@@ -66,13 +72,51 @@ fn missing_fields_fall_back_to_defaults_silently() {
 fn invalid_field_value_falls_back_and_warns() {
     let dir = temp_dir();
     let path = dir.path().join("springload.config.json");
-    std::fs::write(&path, r#"{ "riskPct": "很大", "commissionRate": 0.001 }"#).unwrap();
+    std::fs::write(
+        &path,
+        r#"{ "riskPct": "很大", "cn": { "commissionRate": 0.001 } }"#,
+    )
+    .unwrap();
 
     let load = config::load_settings(&path).expect("读配置");
     assert_eq!(load.settings.risk_pct, 0.005, "非法值应回落到默认");
-    assert_eq!(load.settings.commission_rate, 0.001, "合法值应保留");
+    assert_eq!(load.settings.cn.commission_rate, 0.001, "合法值应保留");
     assert_eq!(load.warnings.len(), 1);
     assert!(load.warnings[0].contains("riskPct"), "警告要点出字段名: {:?}", load.warnings);
+}
+
+/// 旧版本的配置文件里没有 `market` 与两个市场小节，读出来应是默认值。
+#[test]
+fn an_older_config_file_falls_back_to_the_default_market() {
+    let dir = temp_dir();
+    let path = dir.path().join("springload.config.json");
+    std::fs::write(
+        &path,
+        r#"{ "riskPct": 0.008, "liquidityThreshold": 5e7, "commissionRate": 0.001 }"#,
+    )
+    .unwrap();
+
+    let load = config::load_settings(&path).expect("读配置");
+    assert_eq!(load.settings.market, Market::Cn);
+    assert_eq!(load.settings.risk_pct, 0.008);
+    assert_eq!(load.settings.cn, config::MarketSettings::cn());
+    assert_eq!(load.settings.us, config::MarketSettings::us());
+}
+
+/// 市场写在配置里，切过去之后重新读还是那个市场。
+#[test]
+fn the_market_round_trips_through_the_config_file() {
+    let dir = temp_dir();
+    let path = dir.path().join("springload.config.json");
+    let patch: SettingsPatch = serde_json::from_str(r#"{ "market": "us" }"#).expect("解析补丁");
+    let next = patch.apply(&Settings::default());
+    assert_eq!(next.market, Market::Us);
+    assert_eq!(next.current(), next.us);
+
+    config::save_settings(&path, &next).expect("写配置");
+    let load = config::load_settings(&path).expect("读配置");
+    assert_eq!(load.settings.market, Market::Us);
+    assert!(load.warnings.is_empty(), "{:?}", load.warnings);
 }
 
 #[test]

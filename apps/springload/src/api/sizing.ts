@@ -12,6 +12,8 @@ export interface SizingResult {
   t3: number;
   t5: number;
   unusedRisk: number;
+  /** 本市场的最小申报单位（股）：A 股 100，美股 1。 */
+  lotSize: number;
 }
 
 /** 算仓位与目标位。买入价不高于止损价时命令返回错误。 */

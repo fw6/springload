@@ -41,6 +41,7 @@ pub fn run() {
             commands::app::glossary,
             commands::app::settings_get,
             commands::app::settings_update,
+            commands::app::market_set,
             commands::market::sync_market,
             commands::market::sync_status,
             commands::market::stock_list,

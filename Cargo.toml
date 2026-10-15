@@ -3,9 +3,9 @@ members = [
     "apps/springload/src-tauri",
     "crates/springload-core",
 ]
-# 原型目录不参与构建；中间结果目录里的第三方 Cargo.toml 也不进 workspace：
+# 中间结果目录里的第三方 Cargo.toml 不进 workspace：
 # pnpm install 会扫全树并对每个 Cargo.toml 跑 cargo metadata，排除掉才不会被卡住整次安装。
-exclude = ["prototype", ".scratch"]
+exclude = [".scratch"]
 resolver = "2"
 
 # 应用版本的事实来源是 apps/springload/src-tauri/tauri.conf.json 的 version。

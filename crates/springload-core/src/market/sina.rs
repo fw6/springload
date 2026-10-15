@@ -1,11 +1,14 @@
 //! 新浪适配器：`hq.sinajs.cn` 实时快照。
 //!
-//! 事实来源见 `docs/research/quote-api-limits.md` 第一节。请求必须携带主机名为
-//! `sina.com.cn` 或其子域的 `Referer`，响应编码是 GB18030。不存在的代码返回空占位
-//! `=""`，响应按代码字段重新配对。
+//! 事实来源见 `docs/research/quote-api-limits.md` 第一节与 `docs/research/us-quote-source.md`。
+//! 请求必须携带主机名为 `sina.com.cn` 或其子域的 `Referer`，响应编码是 GB18030。
+//! 不存在的代码返回空占位 `=""`，响应按代码字段重新配对。
+//!
+//! 两个市场的字段位置完全不同：A 股是逗号分隔的三十多项、美股是三十六项的另一套
+//! 排法，所以各写一个解析函数。美股没有涨跌停与停牌状态位，返回非空即视为正常交易。
 
 use super::url_budget::Budget;
-use super::{parse_f64, Snapshot, TradeStatus};
+use super::{parse_f64, Market, Snapshot, TradeStatus};
 use crate::error::{CoreError, Result};
 use encoding_rs::GB18030;
 
@@ -26,11 +29,21 @@ pub const BATCH_BUDGET: Budget = Budget {
     max_codes: MAX_CODES,
 };
 
+/// 代码前缀：A 股与腾讯一致（`sh`/`sz`/`bj`），美股是 `gb_` 加小写代码。
+///
+/// 新浪的美股代码区分大小写：`gb_aapl` 有行情，`gb_AAPL` 返回空占位。
+pub fn prefix(code: &str, market: Market) -> String {
+    match market {
+        Market::Cn => format!("{}{}", super::tencent::prefix(code, Market::Cn), code),
+        Market::Us => format!("gb_{}", code.trim().to_ascii_lowercase()),
+    }
+}
+
 /// 请求 URL。
-pub fn list_url(codes: &[String]) -> String {
+pub fn list_url(codes: &[String], market: Market) -> String {
     let joined = codes
         .iter()
-        .map(|code| format!("{}{}", super::tencent::prefix(code), code))
+        .map(|code| prefix(code, market))
         .collect::<Vec<_>>()
         .join(",");
     format!("{LIST_ENDPOINT}{joined}")
@@ -67,7 +80,7 @@ pub fn decode(body: &[u8]) -> String {
 }
 
 /// 解析快照响应。空占位（`=""`）的代码被跳过。
-pub fn parse_snapshots(body: &str) -> Result<Vec<Snapshot>> {
+pub fn parse_snapshots(body: &str, market: Market) -> Result<Vec<Snapshot>> {
     let mut out = Vec::new();
     for line in body.lines() {
         let line = line.trim();
@@ -82,13 +95,6 @@ pub fn parse_snapshots(body: &str) -> Result<Vec<Snapshot>> {
         let Some(symbol) = var.rsplit('_').next() else {
             continue;
         };
-        let Some(code) = symbol
-            .strip_prefix("sh")
-            .or_else(|| symbol.strip_prefix("sz"))
-            .or_else(|| symbol.strip_prefix("bj"))
-        else {
-            continue;
-        };
         let content = line[eq + 1..]
             .trim()
             .trim_end_matches(';')
@@ -98,30 +104,79 @@ pub fn parse_snapshots(body: &str) -> Result<Vec<Snapshot>> {
         if content.is_empty() {
             continue;
         }
-        let fields: Vec<&str> = content.split(',').collect();
-        // 最后一项状态码在索引 32，字段数不足 33 时截断了。
-        if fields.len() < 33 {
-            return Err(CoreError::InvalidData(format!(
-                "新浪快照字段数 {} 少于 33",
-                fields.len()
-            )));
-        }
-        out.push(Snapshot {
-            code: code.to_string(),
-            name: fields[0].trim().to_string(),
-            open: parse_f64("今开", fields[1])?,
-            prev_close: parse_f64("昨收", fields[2])?,
-            last: parse_f64("最新价", fields[3])?,
-            high: parse_f64("最高", fields[4])?,
-            low: parse_f64("最低", fields[5])?,
-            // 第 8 项单位是股。
-            volume: parse_f64("成交量", fields[8])?,
-            amount: parse_f64("成交额", fields[9])?,
-            status: sina_status(fields[32]),
-            captured_at: format!("{} {}", fields[30].trim(), fields[31].trim()),
+        out.push(match market {
+            Market::Cn => cn_snapshot(symbol, content)?,
+            Market::Us => us_snapshot(symbol, content)?,
         });
     }
     Ok(out)
+}
+
+/// A 股快照的一行。
+fn cn_snapshot(symbol: &str, content: &str) -> Result<Snapshot> {
+    let Some(code) = symbol
+        .strip_prefix("sh")
+        .or_else(|| symbol.strip_prefix("sz"))
+        .or_else(|| symbol.strip_prefix("bj"))
+    else {
+        return Err(CoreError::InvalidData(format!(
+            "新浪快照的代码字段不认识: {symbol}"
+        )));
+    };
+    let fields: Vec<&str> = content.split(',').collect();
+    // 最后一项状态码在索引 32，字段数不足 33 时截断了。
+    if fields.len() < 33 {
+        return Err(CoreError::InvalidData(format!(
+            "新浪快照字段数 {} 少于 33",
+            fields.len()
+        )));
+    }
+    Ok(Snapshot {
+        code: code.to_string(),
+        name: fields[0].trim().to_string(),
+        open: parse_f64("今开", fields[1])?,
+        prev_close: parse_f64("昨收", fields[2])?,
+        last: parse_f64("最新价", fields[3])?,
+        high: parse_f64("最高", fields[4])?,
+        low: parse_f64("最低", fields[5])?,
+        // 第 8 项单位是股。
+        volume: parse_f64("成交量", fields[8])?,
+        amount: parse_f64("成交额", fields[9])?,
+        status: sina_status(fields[32]),
+        captured_at: format!("{} {}", fields[30].trim(), fields[31].trim()),
+    })
+}
+
+/// 美股快照的一行。变量名形如 `var hq_str_gb_aapl`，末段已经是 `gb_` 之后的小写
+/// 交易代码本身，不含市场前缀。
+fn us_snapshot(symbol: &str, content: &str) -> Result<Snapshot> {
+    if symbol.is_empty() {
+        return Err(CoreError::InvalidData(
+            "新浪快照的代码字段是空的".to_string(),
+        ));
+    }
+    let fields: Vec<&str> = content.split(',').collect();
+    // 成交额在索引 30，字段数不足 31 时截断了。
+    if fields.len() < 31 {
+        return Err(CoreError::InvalidData(format!(
+            "新浪美股快照字段数 {} 少于 31",
+            fields.len()
+        )));
+    }
+    Ok(Snapshot {
+        code: symbol.to_ascii_uppercase(),
+        name: fields[0].trim().to_string(),
+        last: parse_f64("最新价", fields[1])?,
+        open: parse_f64("今开", fields[5])?,
+        high: parse_f64("最高", fields[6])?,
+        low: parse_f64("最低", fields[7])?,
+        // 第 10 项单位是股。
+        volume: parse_f64("成交量", fields[10])?,
+        amount: parse_f64("成交额", fields[30])?,
+        prev_close: parse_f64("昨收", fields[26])?,
+        status: TradeStatus::Trading,
+        captured_at: fields[3].trim().to_string(),
+    })
 }
 
 /// 第 32 项状态码：`00` 为正常，其余取值未在调研中核实。

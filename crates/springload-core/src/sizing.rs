@@ -2,12 +2,12 @@
 //!
 //! 纯计算，不碰数据库：`plan_calc` 命令与交易计划卡、持仓跟踪共用这里的函数。
 //! 数值规则取自规格「仓位计算与目标位」一节。
+//!
+//! 买入股数按市场的最小申报单位向下取整：A 股一手 100 股，美股按整股。
 
 use crate::error::{CoreError, Result};
+use crate::market::Market;
 use serde::{Deserialize, Serialize};
-
-/// A 股一手的股数：买入申报必须是 100 股的整数倍。
-pub const LOT_SIZE: i64 = 100;
 
 /// 止损距离的警告阈值：超过它给出显著警告，但不阻止提交。
 pub const STOP_DISTANCE_WARN: f64 = 0.05;
@@ -16,11 +16,11 @@ pub const STOP_DISTANCE_WARN: f64 = 0.05;
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SizingInput {
-    /// 买入价（元/股）。
+    /// 买入价（本市场货币/股）。
     pub entry: f64,
-    /// 止损价（元/股）。
+    /// 止损价（本市场货币/股）。
     pub stop: f64,
-    /// 账户金额（元）。
+    /// 账户金额（本市场货币）。
     pub account: f64,
     /// 单笔风险比例。
     pub risk_pct: f64,
@@ -34,7 +34,7 @@ pub struct SizingResult {
     pub per_r: f64,
     /// 本单最大可亏金额 = 账户金额 × 单笔风险比例。
     pub max_loss: f64,
-    /// 可买股数：向下取整到 100 股的整数倍。
+    /// 可买股数：向下取整到最小申报单位的整数倍。
     pub shares: i64,
     /// 投入金额 = 股数 × 买入价。
     pub capital: f64,
@@ -46,8 +46,10 @@ pub struct SizingResult {
     pub t3: f64,
     /// 5R 目标位 = 买入价 + 5 × 每股风险。
     pub t5: f64,
-    /// 因 100 股一手取整而未能用满的风险金额。
+    /// 因最小申报单位取整而未能用满的风险金额。
     pub unused_risk: f64,
+    /// 本市场的最小申报单位（股）。
+    pub lot_size: i64,
 }
 
 /// 减仓安排：3R 与 5R 各减一部分，剩余跟随 9 日均线。
@@ -63,17 +65,18 @@ pub struct ReducePlan {
 }
 
 /// 算仓位。买入价不高于止损价时返回错误。
-pub fn size(input: &SizingInput) -> Result<SizingResult> {
+pub fn size(input: &SizingInput, market: Market) -> Result<SizingResult> {
     if !(input.entry > input.stop) {
         return Err(CoreError::InvalidData(
             "买入价必须高于止损价，请检查输入".to_string(),
         ));
     }
+    let lot = market.lot_size();
     let per_r = input.entry - input.stop;
     let max_loss = input.account * input.risk_pct;
     let raw_shares = (max_loss / per_r).floor();
     let shares = if raw_shares.is_finite() && raw_shares > 0.0 {
-        (raw_shares as i64 / LOT_SIZE) * LOT_SIZE
+        (raw_shares as i64 / lot) * lot
     } else {
         0
     };
@@ -92,6 +95,7 @@ pub fn size(input: &SizingInput) -> Result<SizingResult> {
         t3: input.entry + 3.0 * per_r,
         t5: input.entry + 5.0 * per_r,
         unused_risk: max_loss - shares as f64 * per_r,
+        lot_size: lot,
     })
 }
 
@@ -117,7 +121,7 @@ pub fn r_multiple(exit_price: f64, entry: f64, per_r: f64) -> f64 {
 mod tests {
     use super::*;
 
-    /// 规格里的示例：账户 100,000 元，entry 20.00、stop 19.50。
+    /// 规格里的示例：账户 100,000，entry 20.00、stop 19.50。
     fn example() -> SizingInput {
         SizingInput {
             entry: 20.00,
@@ -136,7 +140,7 @@ mod tests {
 
     #[test]
     fn example_numbers_match_spec() {
-        let result = size(&example()).expect("示例输入合法");
+        let result = size(&example(), Market::Cn).expect("示例输入合法");
         assert_close(result.per_r, 0.50);
         assert_close(result.max_loss, 500.0);
         assert_eq!(result.shares, 1000);
@@ -146,6 +150,7 @@ mod tests {
         assert_close(result.t3, 21.50);
         assert_close(result.t5, 22.50);
         assert_close(result.unused_risk, 0.0);
+        assert_eq!(result.lot_size, 100);
     }
 
     #[test]
@@ -153,10 +158,10 @@ mod tests {
         let mut input = example();
         input.entry = 19.50;
         input.stop = 19.50;
-        assert!(size(&input).is_err(), "买入价等于止损价应报错");
+        assert!(size(&input, Market::Cn).is_err(), "买入价等于止损价应报错");
 
         input.entry = 19.00;
-        assert!(size(&input).is_err(), "买入价低于止损价应报错");
+        assert!(size(&input, Market::Cn).is_err(), "买入价低于止损价应报错");
     }
 
     #[test]
@@ -168,30 +173,37 @@ mod tests {
             account: 100_000.0,
             risk_pct: 0.005,
         };
-        let result = size(&input).expect("止损距离超阈值不阻止计算");
+        let result = size(&input, Market::Cn).expect("止损距离超阈值不阻止计算");
         assert!(result.stop_distance > STOP_DISTANCE_WARN);
         assert!(result.shares > 0);
     }
 
     #[test]
     fn zero_shares_when_budget_smaller_than_one_lot() {
-        // 最大可亏 5 元，每股风险 0.50 元 → 原始股数 10 股，取整到 100 股后为 0。
+        // A 股：最大可亏 5 元，每股风险 0.50 元 → 原始股数 10 股，取整到 100 股后为 0。
         let input = SizingInput {
             entry: 20.00,
             stop: 19.50,
             account: 1_000.0,
             risk_pct: 0.005,
         };
-        let result = size(&input).expect("输入合法，只是股数为 0");
+        let result = size(&input, Market::Cn).expect("输入合法，只是股数为 0");
         assert_eq!(result.shares, 0);
         assert_close(result.capital, 0.0);
         assert_close(result.pos_pct, 0.0);
         assert_close(result.unused_risk, 5.0);
+
+        // 美股同一笔输入按整股取整，能买到 10 股。
+        let us = size(&input, Market::Us).expect("输入合法");
+        assert_eq!(us.shares, 10);
+        assert_eq!(us.lot_size, 1);
+        assert_close(us.capital, 200.0);
+        assert_close(us.unused_risk, 0.0);
     }
 
     #[test]
     fn unused_risk_reflects_lot_rounding() {
-        // 最大可亏 375 元，每股风险 0.50 元 → 原始 750 股，取整到 700 股，
+        // A 股：最大可亏 375 元，每股风险 0.50 元 → 原始 750 股，取整到 700 股，
         // 未用满的风险 = 375 − 700 × 0.50 = 25 元。
         let input = SizingInput {
             entry: 20.00,
@@ -199,9 +211,14 @@ mod tests {
             account: 75_000.0,
             risk_pct: 0.005,
         };
-        let result = size(&input).expect("输入合法");
+        let result = size(&input, Market::Cn).expect("输入合法");
         assert_eq!(result.shares, 700);
         assert_close(result.unused_risk, 25.0);
+
+        // 美股不按手取整，同一笔输入用满风险：750 股，未用满的风险为 0。
+        let us = size(&input, Market::Us).expect("输入合法");
+        assert_eq!(us.shares, 750);
+        assert_close(us.unused_risk, 0.0);
     }
 
     #[test]

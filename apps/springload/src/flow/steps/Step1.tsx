@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { toMessage } from "../../api/invoke";
 import {
   screenLast,
@@ -8,9 +9,12 @@ import {
   type ScreenRow,
 } from "../../api/screen";
 import { AiCard } from "../../components/AiCard";
+import { DataTable, SortButton, Td, Th, Tr } from "../../components/DataTable";
 import { Flag } from "../../components/Flag";
 import { TermHint } from "../../components/TermHint";
-import { Tooltip } from "../../components/Tooltip";
+import { TOOLTIP_TEXT_CLASS, Tooltip } from "../../components/Tooltip";
+import { Alert, AlertContent, AlertDescription, AlertIcon } from "../../components/ui/alert";
+import { StatefulButton } from "../../components/ui/button";
 import type { StepProps } from "../useFlow";
 
 /** 两张表共用的排序键。 */
@@ -36,6 +40,25 @@ const TOOLTIPS: Record<SortKey | "c1" | "c2" | "c3" | "c4", string> = {
 /** 涨幅按百分数展示；没有数据时显示破折号。 */
 function pct(value: number | null): string {
   return value === null ? "—" : `${(value * 100).toFixed(1)}%`;
+}
+
+/**
+ * 未入选表的行高估值。真实高度由 `measureElement` 逐行量出来，
+ * 这个数字只用来决定第一屏要挂多少行。
+ */
+const REJECTED_ROW_ESTIMATE = 33;
+
+/** 未入选表一次挂到视口外面的行数：滚动时留出缓冲，不会看到空白。 */
+const REJECTED_OVERSCAN = 12;
+
+/**
+ * 未入选表视口的高度上限，大约露出十二行。
+ * 窗口矮的时候按窗口高的一半收窄，免得表格把面板挤得只剩它自己。
+ */
+const REJECTED_VIEWPORT_MAX = 400;
+
+function rejectedViewportHeight(): number {
+  return Math.round(Math.min(REJECTED_VIEWPORT_MAX, window.innerHeight * 0.5));
 }
 
 /** 价格保留两位小数。 */
@@ -67,58 +90,34 @@ function sortRows(rows: ScreenRow[], sort: Sort): ScreenRow[] {
   });
 }
 
-/** 可点击排序的列头。 */
-function SortHeader({
-  label,
-  tooltip,
-  sortKey,
-  sort,
-  onSort,
-}: {
-  label: string;
-  tooltip: string;
-  sortKey: SortKey;
-  sort: Sort;
-  onSort: (key: SortKey) => void;
-}) {
-  const active = sort.key === sortKey;
-  return (
-    <th>
-      <Tooltip text={tooltip}>
-        <button
-          type="button"
-          className="ghost"
-          style={{ border: "none", background: "transparent", padding: 0, color: "inherit" }}
-          aria-label={`${label}排序`}
-          onClick={() => onSort(sortKey)}
-        >
-          {label}
-          {active ? (sort.desc ? " ↓" : " ↑") : ""}
-        </button>
-      </Tooltip>
-    </th>
-  );
-}
-
 /** 四条判定的表头，带悬停解释。 */
 function FlagHeader({ label, tooltip }: { label: string; tooltip: string }) {
   return (
-    <th>
+    <Th align="center">
       <Tooltip text={tooltip}>
-        <span>{label}</span>
+        <span className={TOOLTIP_TEXT_CLASS}>{label}</span>
       </Tooltip>
-    </th>
+    </Th>
+  );
+}
+
+/** 小标题：栏线下面一行加粗的宋体。 */
+function SectionHead({ children }: { children: string }) {
+  return (
+    <h3 className="border-b border-rule pb-1 font-display text-body font-bold text-ink">
+      {children}
+    </h3>
   );
 }
 
 /**
- * 第 1 步面板：跑筛选、看入选与未入选两张表、把股票加进观察名单。
+ * 第 1 版：跑筛选、看入选与未入选两张表、把股票加进观察名单。
  *
  * 数据由本步自己的 hook 取（筛选结果），观察名单走 `flow` 写回。
  */
 export default function Step1({ flow }: StepProps) {
   const [report, setReport] = useState<ScreenReport | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, startBusy] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>({ key: "rankPct", desc: false });
 
@@ -151,17 +150,40 @@ export default function Step1({ flow }: StepProps) {
     [report, sort],
   );
 
-  const runScreen = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      setReport(await screenStocks());
-      await flow.reloadWatchlist();
-    } catch (failure: unknown) {
-      setError(toMessage(failure));
-    } finally {
-      setBusy(false);
-    }
+  /**
+   * 未入选动辄三千多只，一次全挂上去会把主线程占住几百毫秒，
+   * 切换版次时能明显看到卡一下。这里只渲染视口附近的那些行，
+   * 上下各垫一条与剩余行等高、不画线的空行把滚动条撑到正确的长度。
+   */
+  const rejectedViewport = useRef<HTMLDivElement | null>(null);
+  const rejectedRows = useVirtualizer({
+    count: rejected.length,
+    getScrollElement: () => rejectedViewport.current,
+    estimateSize: () => REJECTED_ROW_ESTIMATE,
+    getItemKey: (index) => rejected[index]?.code ?? index,
+    overscan: REJECTED_OVERSCAN,
+  });
+  const rejectedItems = rejectedRows.getVirtualItems();
+  const rejectedTotal = rejectedRows.getTotalSize();
+  const rejectedFirst = rejectedItems[0];
+  const rejectedLast = rejectedItems[rejectedItems.length - 1];
+  const [rejectedHeight, setRejectedHeight] = useState(rejectedViewportHeight);
+  useEffect(() => {
+    const update = () => setRejectedHeight(rejectedViewportHeight());
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  const runScreen = () => {
+    startBusy(async () => {
+      try {
+        setReport(await screenStocks());
+        await flow.reloadWatchlist();
+        setError(null);
+      } catch (failure: unknown) {
+        setError(toMessage(failure));
+      }
+    });
   };
 
   const addToWatchlist = async (code: string) => {
@@ -176,7 +198,7 @@ export default function Step1({ flow }: StepProps) {
 
   /**
    * 选中一行。`selectStock` 会顺带让 Rust 重新判定解锁状态，
-   * 但本步要留在第 1 步继续挑股票，所以把步改回来。
+   * 但本步要留在第 1 版继续挑股票，所以把版次改回来。
    */
   const selectRow = (code: string) => {
     flow.selectStock(code);
@@ -186,18 +208,31 @@ export default function Step1({ flow }: StepProps) {
   const selected = flow.selected;
   const alreadyIn = selected !== null && flow.watchlist.some((row) => row.code === selected);
 
+  const sortProps = (key: SortKey, label: string, tooltip: string) => ({
+    label,
+    tooltip,
+    active: sort.key === key,
+    desc: sort.desc,
+    onClick: () => onSort(key),
+  });
+
   return (
     <>
-      <p className="hint">
-        这一步只做一件事：找出正在休息的强势股。四条判定全中才进观察名单 ——{" "}
+      <p className="text-body leading-relaxed text-ink-soft">
+        这一版只做一件事：找出正在休息的强势股。四条判定全中才进观察名单 ——{" "}
         <TermHint termKey="pullback" />。
       </p>
 
-      <div className="field-row">
-        <button type="button" className="primary" onClick={() => void runScreen()} disabled={busy}>
-          {busy ? "筛选进行中…" : "开始筛选"}
-        </button>
-        <span className="hint">
+      <div className="flex flex-wrap items-center gap-3">
+        <StatefulButton
+          size="sm"
+          state={busy ? "loading" : "idle"}
+          loadingText="筛选进行中…"
+          onClick={() => runScreen()}
+        >
+          开始筛选
+        </StatefulButton>
+        <span className="text-note text-ink-soft">
           {report === null
             ? "还没有跑过筛选。筛选参数在设置页调整。"
             : `跑在 ${report.universe} 只股票上，用了 ${report.elapsedMs} 毫秒。`}
@@ -205,40 +240,31 @@ export default function Step1({ flow }: StepProps) {
       </div>
 
       {error !== null ? (
-        <div className="notice" data-tone="risk">
-          筛选失败：{error}
-        </div>
+        <Alert variant="destructive">
+          <AlertIcon />
+          <AlertContent>
+            <AlertDescription>筛选失败：{error}</AlertDescription>
+          </AlertContent>
+        </Alert>
       ) : null}
 
-      <h3 className="block-title">入选（{picked.length} 只）</h3>
-      <table className="grid">
+      <SectionHead>{`入选（${picked.length} 只）`}</SectionHead>
+      <DataTable>
         <thead>
           <tr>
-            <th className="left">代码</th>
-            <th className="left">名称</th>
-            <th className="left">板块</th>
-            <th>最新价</th>
-            <SortHeader
-              label="近 1 月"
-              tooltip={TOOLTIPS.chg1m}
-              sortKey="chg1m"
-              sort={sort}
-              onSort={onSort}
-            />
-            <SortHeader
-              label="近 6 月"
-              tooltip={TOOLTIPS.chg6m}
-              sortKey="chg6m"
-              sort={sort}
-              onSort={onSort}
-            />
-            <SortHeader
-              label="排名"
-              tooltip={TOOLTIPS.rankPct}
-              sortKey="rankPct"
-              sort={sort}
-              onSort={onSort}
-            />
+            <Th>代码</Th>
+            <Th>名称</Th>
+            <Th>板块</Th>
+            <Th align="right">最新价</Th>
+            <Th align="right">
+              <SortButton {...sortProps("chg1m", "近 1 月", TOOLTIPS.chg1m)} />
+            </Th>
+            <Th align="right">
+              <SortButton {...sortProps("chg6m", "近 6 月", TOOLTIPS.chg6m)} />
+            </Th>
+            <Th align="right">
+              <SortButton {...sortProps("rankPct", "排名", TOOLTIPS.rankPct)} />
+            </Th>
             <FlagHeader label="C1" tooltip={TOOLTIPS.c1} />
             <FlagHeader label="C2" tooltip={TOOLTIPS.c2} />
             <FlagHeader label="C3" tooltip={TOOLTIPS.c3} />
@@ -247,79 +273,101 @@ export default function Step1({ flow }: StepProps) {
         </thead>
         <tbody>
           {picked.map((row) => (
-            <tr
+            <Tr
               key={row.code}
-              data-selected={flow.selected === row.code}
-              style={{ cursor: "pointer" }}
+              selected={flow.selected === row.code}
               onClick={() => selectRow(row.code)}
             >
-              <td className="left mono">{row.code}</td>
-              <td className="left">{row.name}</td>
-              <td className="left" style={{ color: "#64748b" }}>
-                {row.sector ?? "—"}
-              </td>
-              <td className="mono">{price(row.price)}</td>
-              <td className="mono">{pct(row.chg1m)}</td>
-              <td className="mono">{pct(row.chg6m)}</td>
-              <td className="mono">{pct(row.rankPct)}</td>
-              <td>
+              <Td>{row.code}</Td>
+              <Td>{row.name}</Td>
+              <Td className="text-ink-soft">{row.sector ?? "—"}</Td>
+              <Td align="right">{price(row.price)}</Td>
+              <Td align="right">{pct(row.chg1m)}</Td>
+              <Td align="right">{pct(row.chg6m)}</Td>
+              <Td align="right">{pct(row.rankPct)}</Td>
+              <Td align="center">
                 <Flag ok={row.c1} />
-              </td>
-              <td>
+              </Td>
+              <Td align="center">
                 <Flag ok={row.c2} />
-              </td>
-              <td>
+              </Td>
+              <Td align="center">
                 <Flag ok={row.c3} />
-              </td>
-              <td>
+              </Td>
+              <Td align="center">
                 <Flag ok={row.c4} />
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
-      </table>
+      </DataTable>
 
-      <h3 className="block-title">未入选（{rejected.length} 只）</h3>
-      <table className="grid">
+      <SectionHead>{`未入选（${rejected.length} 只）`}</SectionHead>
+      <DataTable
+        ref={rejectedViewport}
+        rowCount={rejected.length + 1}
+        style={{ height: rejectedHeight }}
+      >
         <thead>
           <tr>
-            <th className="left">代码</th>
-            <th className="left">名称</th>
-            <th>近 6 月</th>
-            <th>排名</th>
-            <th className="left">未中的条件</th>
+            <Th>代码</Th>
+            <Th>名称</Th>
+            <Th align="right">近 6 月</Th>
+            <Th align="right">排名</Th>
+            <Th>未中的条件</Th>
           </tr>
         </thead>
         <tbody>
-          {rejected.map((row) => (
-            <tr
-              key={row.code}
-              data-selected={flow.selected === row.code}
-              style={{ cursor: "pointer" }}
-              onClick={() => selectRow(row.code)}
-            >
-              <td className="left mono">{row.code}</td>
-              <td className="left">{row.name}</td>
-              <td className="mono">{pct(row.chg6m)}</td>
-              <td className="mono">{pct(row.rankPct)}</td>
-              <td className="left" style={{ color: "#b45309" }}>
-                {missedLabels(row).join(" · ")}
-              </td>
+          {rejectedFirst !== undefined && rejectedFirst.start > 0 ? (
+            <tr aria-hidden className="border-0">
+              <td className="border-0 p-0" colSpan={5} style={{ height: rejectedFirst.start }} />
             </tr>
-          ))}
+          ) : null}
+          {rejectedItems.map((item) => {
+            const row = rejected[item.index];
+            if (row === undefined) return null;
+            return (
+              <Tr
+                key={row.code}
+                ref={rejectedRows.measureElement}
+                data-index={item.index}
+                // 行高给一个固定值：窗口化要按行高算每一行落在哪儿，
+                // 内容偶尔换行时再靠 measureElement 逐行校正。
+                style={{ height: REJECTED_ROW_ESTIMATE }}
+                // 行号把表头那一行算进去，辅助技术读出来才是「第几行，共几行」。
+                aria-rowindex={item.index + 2}
+                selected={flow.selected === row.code}
+                onClick={() => selectRow(row.code)}
+              >
+                <Td>{row.code}</Td>
+                <Td>{row.name}</Td>
+                <Td align="right">{pct(row.chg6m)}</Td>
+                <Td align="right">{pct(row.rankPct)}</Td>
+                <Td className="text-warn">{missedLabels(row).join(" · ")}</Td>
+              </Tr>
+            );
+          })}
+          {rejectedLast !== undefined && rejectedTotal - rejectedLast.end > 0 ? (
+            <tr aria-hidden className="border-0">
+              <td
+                className="border-0 p-0"
+                colSpan={5}
+                style={{ height: rejectedTotal - rejectedLast.end }}
+              />
+            </tr>
+          ) : null}
         </tbody>
-      </table>
+      </DataTable>
 
-      <div className="panel-foot">
-        <button
-          type="button"
-          className="primary"
+      <div className="flex flex-wrap items-center gap-3">
+        <StatefulButton
+          size="sm"
           disabled={selected === null || alreadyIn}
           onClick={() => selected !== null && void addToWatchlist(selected)}
         >
           加入观察名单
-        </button>
-        <span className="hint">已加入 {flow.watchlist.length} 只</span>
+        </StatefulButton>
+        <span className="text-note text-ink-soft">已加入 {flow.watchlist.length} 只</span>
       </div>
 
       <AiCard code={flow.selected} scope={1} />

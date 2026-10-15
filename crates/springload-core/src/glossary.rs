@@ -2,7 +2,11 @@
 //!
 //! 术语的白话解释取自需求规格说明书第 2 章；四步文案取自原型
 //! `prototype/src/data/glossary.ts`，并按规格第 10 条补足筛选条件与减仓比例。
+//!
+//! 术语表两个市场共用：回调买入法的定义与市场无关。四步文案里提到股票池范围与
+//! 买入申报单位的两处按市场取不同的说法。
 
+use crate::market::Market;
 use serde::Serialize;
 
 /// 一个术语：键、显示名与白话解释。
@@ -102,15 +106,33 @@ pub fn terms() -> Vec<Term> {
     ]
 }
 
+/// 股票池范围的一句话描述。
+fn universe(market: Market) -> &'static str {
+    match market {
+        Market::Cn => "沪深主板",
+        Market::Us => "纳斯达克、纽交所与美交所的普通股与存托凭证",
+    }
+}
+
+/// 买入申报单位的一句话描述。
+fn lot_rule(market: Market) -> &'static str {
+    match market {
+        Market::Cn => "A 股按手交易，股数需要向下取整到 100 股的整数倍。",
+        Market::Us => "美股按整股交易，股数向下取整到整股。",
+    }
+}
+
 /// 四步文案。
-pub fn steps() -> Vec<StepCopy> {
+pub fn steps(market: Market) -> Vec<StepCopy> {
     vec![
         StepCopy {
             index: 1,
             title: "强势股筛选".to_string(),
             goal: "先找出近期走得强、现在正在休息的股票".to_string(),
-            one_line: "从沪深主板里筛出「涨过一波、现在横着」的股票，得到一张观察名单。"
-                .to_string(),
+            one_line: format!(
+                "从{}里筛出「涨过一波、现在横着」的股票，得到一张观察名单。",
+                universe(market)
+            ),
             detail: "筛选器只看四件事：近 6 个月有没有涨够；近 1 个月的涨幅排名落不落得进前 20%~30% 这一段；回调的低点是不是一次比一次高、近 20 日的波动是不是在收窄；收盘价有没有站在 9 日均线上、并且 EMA9 与 EMA21 走平或向上。四条同时满足才会进观察名单；如果高点与低点均下降且收盘价 < 向下的 EMA21，这只股票会被排除。这一步不判断这只股票值不值得买，只判断它是不是符合回调蓄势的形态。"
                 .to_string(),
             term_keys: vec!["pullback".to_string(), "ema".to_string()],
@@ -149,8 +171,10 @@ pub fn steps() -> Vec<StepCopy> {
             one_line:
                 "输入买入价、止损价、账户金额和单笔风险比例，算出股数、投入金额与 3R/5R 目标位。"
                     .to_string(),
-            detail: "每股风险 = 买入价 − 止损价。本单最大可亏金额 = 账户金额 × 单笔风险比例。可买股数 = 最大可亏金额 ÷ 每股风险，向下取整。3R 与 5R 目标位分别是买入价加上 3 倍和 5 倍的每股风险。A 股按手交易，股数需要向下取整到 100 股的整数倍。到达目标位后分批减仓：3R 卖三分之一、5R 再卖三分之一、剩余三分之一跟随 9 日均线。"
-                .to_string(),
+            detail: format!(
+                "每股风险 = 买入价 − 止损价。本单最大可亏金额 = 账户金额 × 单笔风险比例。可买股数 = 最大可亏金额 ÷ 每股风险，向下取整。3R 与 5R 目标位分别是买入价加上 3 倍和 5 倍的每股风险。{}到达目标位后分批减仓：3R 卖三分之一、5R 再卖三分之一、剩余三分之一跟随 9 日均线。",
+                lot_rule(market)
+            ),
             term_keys: vec![
                 "r".to_string(),
                 "target".to_string(),
@@ -163,9 +187,9 @@ pub fn steps() -> Vec<StepCopy> {
 }
 
 /// 组装 `glossary` 命令的完整返回。
-pub fn glossary() -> Glossary {
+pub fn glossary(market: Market) -> Glossary {
     Glossary {
         terms: terms(),
-        steps: steps(),
+        steps: steps(market),
     }
 }

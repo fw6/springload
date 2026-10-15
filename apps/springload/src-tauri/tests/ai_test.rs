@@ -2,6 +2,7 @@
 //! 不再调用模型。命令层与领域层都从这里调用。
 
 use serde_json::{json, Value};
+use springload_core::market::Market;
 use springload_core::ai::{self, AiError, AiResult, ChatClient, ExplainOutput, Scope};
 use springload_core::storage::bar::{self, BarRow};
 use springload_core::storage::signal::{self, Signal};
@@ -283,8 +284,12 @@ impl Harness {
         Self { _dir: dir, state }
     }
 
-    fn db(&self) -> &Database {
+    fn db(&self) -> Database {
         self.state.db()
+    }
+
+    fn market(&self) -> Market {
+        self.state.market()
     }
 }
 
@@ -293,11 +298,11 @@ impl Harness {
 #[test]
 fn step1_success_generates_once_and_reports_the_model() {
     let harness = Harness::new();
-    seed_step1(harness.db());
+    seed_step1(&harness.db());
     let fake = FakeChat::ok("这只股票近 6 个月上涨 63.8%。");
 
     let explanation =
-        ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&fake)).expect("生成解释");
+        ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&fake)).expect("生成解释");
 
     assert_eq!(explanation.text, "这只股票近 6 个月上涨 63.8%。");
     assert!(!explanation.cached);
@@ -319,15 +324,15 @@ fn step1_success_generates_once_and_reports_the_model() {
 #[test]
 fn cache_hit_does_not_call_the_model() {
     let harness = Harness::new();
-    seed_step1(harness.db());
+    seed_step1(&harness.db());
     let first = FakeChat::ok("第一次生成的解释");
-    ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&first)).expect("首次生成");
+    ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&first)).expect("首次生成");
     assert_eq!(first.calls(), 1);
 
     // 第二次换一个「一调用就失败」的客户端：命中缓存就不该碰它。
     let second = FakeChat::failing();
     let explanation =
-        ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&second)).expect("读缓存");
+        ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&second)).expect("读缓存");
 
     assert!(explanation.cached);
     assert_eq!(explanation.text, "第一次生成的解释");
@@ -337,12 +342,12 @@ fn cache_hit_does_not_call_the_model() {
 #[test]
 fn failure_returns_an_error_and_does_not_reuse_the_previous_explanation() {
     let harness = Harness::new();
-    seed_step1(harness.db());
+    seed_step1(&harness.db());
     let ok = FakeChat::ok("上一版的解释");
-    ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&ok)).expect("首次生成");
+    ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&ok)).expect("首次生成");
 
     let failing = FakeChat::failing();
-    let message = ai_commands::explain_retry_with(&harness.state, CODE, Scope::Step1, client(&failing))
+    let message = ai_commands::explain_retry_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&failing))
         .expect_err("生成失败应返回错误");
     assert!(message.contains("模型调用失败"), "错误文案应说明模型调用失败：{message}");
     assert_eq!(failing.calls(), 1);
@@ -350,7 +355,7 @@ fn failure_returns_an_error_and_does_not_reuse_the_previous_explanation() {
     // 卡片拿到的是错误而不是上一版；再点重试用能成功的客户端，拿到的是新解释。
     let ok_again = FakeChat::ok("重试后的解释");
     let explanation =
-        ai_commands::explain_retry_with(&harness.state, CODE, Scope::Step1, client(&ok_again))
+        ai_commands::explain_retry_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&ok_again))
             .expect("重试成功");
     assert_eq!(explanation.text, "重试后的解释");
     assert!(!explanation.cached);
@@ -359,18 +364,18 @@ fn failure_returns_an_error_and_does_not_reuse_the_previous_explanation() {
 #[test]
 fn retry_after_a_failed_first_attempt_succeeds() {
     let harness = Harness::new();
-    seed_step1(harness.db());
+    seed_step1(&harness.db());
 
     let first = FakeChat::failing();
     assert!(
-        ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&first)).is_err(),
+        ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&first)).is_err(),
         "第一次生成失败"
     );
     assert_eq!(first.calls(), 1);
 
     let second = FakeChat::ok("重试成功的解释");
     let explanation =
-        ai_commands::explain_retry_with(&harness.state, CODE, Scope::Step1, client(&second))
+        ai_commands::explain_retry_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&second))
             .expect("重试成功");
     assert_eq!(explanation.text, "重试成功的解释");
     assert!(!explanation.cached);
@@ -380,19 +385,19 @@ fn retry_after_a_failed_first_attempt_succeeds() {
 #[test]
 fn invalidate_forces_regeneration() {
     let harness = Harness::new();
-    seed_step1(harness.db());
+    seed_step1(&harness.db());
     let first = FakeChat::ok("第一次");
-    ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&first)).expect("首次生成");
+    ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&first)).expect("首次生成");
 
-    let cached = ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&FakeChat::failing()))
+    let cached = ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&FakeChat::failing()))
         .expect("读缓存");
     assert!(cached.cached);
 
-    ai_commands::explain_invalidate_with(&harness.state, CODE, Scope::Step1).expect("缓存失效");
+    ai_commands::explain_invalidate_with(&harness.db(), CODE, Scope::Step1).expect("缓存失效");
 
     let regenerated = FakeChat::ok("第二次");
     let explanation =
-        ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&regenerated))
+        ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&regenerated))
             .expect("重新生成");
     assert_eq!(explanation.text, "第二次");
     assert!(!explanation.cached);
@@ -402,12 +407,12 @@ fn invalidate_forces_regeneration() {
 #[test]
 fn incomplete_context_returns_an_error_instead_of_generating() {
     let harness = Harness::new();
-    seed_stock(harness.db());
-    seed_bars(harness.db());
+    seed_stock(&harness.db());
+    seed_bars(&harness.db());
     // 没有筛选结论：第 1 步的解释数据不齐备。
     let fake = FakeChat::ok("不该被调用");
 
-    let message = ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&fake))
+    let message = ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&fake))
         .expect_err("数据不齐备应报错");
     assert!(message.contains("数据还不齐备"), "{message}");
     assert_eq!(fake.calls(), 0, "数据不齐备时不应调用模型");
@@ -416,12 +421,12 @@ fn incomplete_context_returns_an_error_instead_of_generating() {
 #[test]
 fn step2_explains_the_zones_and_their_confidence() {
     let harness = Harness::new();
-    seed_stock(harness.db());
-    seed_bars(harness.db());
-    seed_zone(harness.db());
+    seed_stock(&harness.db());
+    seed_bars(&harness.db());
+    seed_zone(&harness.db());
     let fake = FakeChat::ok("图上有一块高置信支撑区。");
 
-    let explanation = ai_commands::explain_with(&harness.state, CODE, Scope::Step2, client(&fake))
+    let explanation = ai_commands::explain_with(&harness.db(), CODE, Scope::Step2, harness.market(), client(&fake))
         .expect("生成解释");
 
     assert_eq!(explanation.text, "图上有一块高置信支撑区。");
@@ -434,18 +439,18 @@ fn step2_explains_the_zones_and_their_confidence() {
 #[test]
 fn step3_reports_which_level_it_is_stuck_on() {
     let harness = Harness::new();
-    seed_stock(harness.db());
-    seed_bars(harness.db());
-    seed_zone(harness.db());
+    seed_stock(&harness.db());
+    seed_bars(&harness.db());
+    seed_zone(&harness.db());
     let waiting = FakeChat::ok("还在等待触发。");
 
-    ai_commands::explain_with(&harness.state, CODE, Scope::Step3, client(&waiting)).expect("生成解释");
+    ai_commands::explain_with(&harness.db(), CODE, Scope::Step3, harness.market(), client(&waiting)).expect("生成解释");
     assert!(waiting.last_prompt().contains("当前状态：等待中"), "{}", waiting.last_prompt());
 
     // 有信号时状态变成已触发。
-    seed_signal(harness.db());
+    seed_signal(&harness.db());
     let triggered = FakeChat::ok("已经触发。");
-    ai_commands::explain_retry_with(&harness.state, CODE, Scope::Step3, client(&triggered))
+    ai_commands::explain_retry_with(&harness.db(), CODE, Scope::Step3, harness.market(), client(&triggered))
         .expect("生成解释");
     let prompt = triggered.last_prompt();
     assert!(prompt.contains("当前状态：已触发"), "{prompt}");
@@ -455,12 +460,12 @@ fn step3_reports_which_level_it_is_stuck_on() {
 #[test]
 fn step4_explains_the_risk_structure() {
     let harness = Harness::new();
-    seed_stock(harness.db());
-    seed_bars(harness.db());
-    seed_plan(harness.db());
+    seed_stock(&harness.db());
+    seed_bars(&harness.db());
+    seed_plan(&harness.db());
     let fake = FakeChat::ok("这一单的每股风险是 0.50 元。");
 
-    ai_commands::explain_with(&harness.state, CODE, Scope::Step4, client(&fake)).expect("生成解释");
+    ai_commands::explain_with(&harness.db(), CODE, Scope::Step4, harness.market(), client(&fake)).expect("生成解释");
 
     let prompt = fake.last_prompt();
     assert!(prompt.contains("每股风险：0.50"), "{prompt}");
@@ -473,11 +478,11 @@ fn step4_explains_the_risk_structure() {
 #[test]
 fn journal_scope_summarizes_closed_trades() {
     let harness = Harness::new();
-    seed_stock(harness.db());
-    seed_trade_log(harness.db());
+    seed_stock(&harness.db());
+    seed_trade_log(&harness.db());
     let fake = FakeChat::ok("已出场的三笔里两笔盈利。");
 
-    let explanation = ai_commands::explain_with(&harness.state, CODE, Scope::Journal, client(&fake))
+    let explanation = ai_commands::explain_with(&harness.db(), CODE, Scope::Journal, harness.market(), client(&fake))
         .expect("生成解释");
 
     assert_eq!(explanation.text, "已出场的三笔里两笔盈利。");
@@ -558,7 +563,7 @@ impl IpcHarness {
 #[test]
 fn explain_command_serves_the_cached_explanation() {
     let harness = IpcHarness::new();
-    let db = harness.db();
+    let db = &harness.db();
     seed_step1(&db);
     // 预置一条缓存，证明缓存命中时不需要 API key 也不会调模型。
     let conn = db.conn().expect("取连接");
@@ -599,7 +604,7 @@ fn explain_command_rejects_an_unknown_step() {
 #[test]
 fn explain_invalidate_command_removes_the_cached_row() {
     let harness = IpcHarness::new();
-    let db = harness.db();
+    let db = &harness.db();
     seed_step1(&db);
     let conn = db.conn().expect("取连接");
     ai::cache::put(
@@ -633,8 +638,8 @@ fn explain_invalidate_command_removes_the_cached_row() {
 #[test]
 fn explain_invalidate_only_touches_its_own_scope() {
     let harness = Harness::new();
-    seed_step1(harness.db());
-    seed_zone(harness.db());
+    seed_step1(&harness.db());
+    seed_zone(&harness.db());
     let conn = harness.db().conn().expect("取连接");
     ai::cache::put(
         &conn,
@@ -661,7 +666,7 @@ fn explain_invalidate_only_touches_its_own_scope() {
     )
     .expect("写缓存");
 
-    ai_commands::explain_invalidate_with(&harness.state, CODE, Scope::Step2).expect("失效第 2 步");
+    ai_commands::explain_invalidate_with(&harness.db(), CODE, Scope::Step2).expect("失效第 2 步");
 
     assert!(
         ai::cache::get(&conn, CODE, Scope::Step1, "2025-03-20")
@@ -677,7 +682,7 @@ fn explain_invalidate_only_touches_its_own_scope() {
 #[test]
 fn switching_stocks_regenerates_instead_of_reusing_the_other_stocks_explanation() {
     let harness = Harness::new();
-    seed_step1(harness.db());
+    seed_step1(&harness.db());
     // 另一只股票：同样的日线形状，不同的代码。
     let other = "000001";
     let mut conn = harness.db().conn().expect("取连接");
@@ -716,18 +721,18 @@ fn switching_stocks_regenerates_instead_of_reusing_the_other_stocks_explanation(
     watchlist::upsert(&conn, &item).expect("写观察名单");
 
     let first = FakeChat::ok("浦发银行的解释");
-    ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&first)).expect("生成");
+    ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&first)).expect("生成");
 
     // 切到另一只股票：缓存键不同，必须重新生成。
     let second = FakeChat::ok("平安银行的解释");
     let explanation =
-        ai_commands::explain_with(&harness.state, other, Scope::Step1, client(&second)).expect("生成");
+        ai_commands::explain_with(&harness.db(), other, Scope::Step1, harness.market(), client(&second)).expect("生成");
     assert_eq!(explanation.text, "平安银行的解释");
     assert!(!explanation.cached);
     assert_eq!(second.calls(), 1);
 
     // 切回第一只：原来的缓存还在，直接命中。
-    let back = ai_commands::explain_with(&harness.state, CODE, Scope::Step1, client(&FakeChat::failing()))
+    let back = ai_commands::explain_with(&harness.db(), CODE, Scope::Step1, harness.market(), client(&FakeChat::failing()))
         .expect("读缓存");
     assert!(back.cached);
     assert_eq!(back.text, "浦发银行的解释");

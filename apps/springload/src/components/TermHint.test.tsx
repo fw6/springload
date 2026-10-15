@@ -21,11 +21,11 @@ function renderHint(termKey: string) {
 }
 
 describe("TermHint", () => {
-  it("术语以虚线胶囊出现，点开后显示白话解释", async () => {
+  it("术语以虚线下划出现，点开后显示白话解释", async () => {
     renderHint("pullback");
 
     const chip = await screen.findByRole("button", { name: "回调买入法" });
-    expect(chip.className).toContain("term-chip");
+    expect(chip.getAttribute("data-slot")).toBe("term");
     expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.click(chip);

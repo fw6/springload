@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-14T03:19:58Z",
+  "title": "Design System: 蓄势 Springload",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "新闻纸灰 Newsprint",
+        "canonical": "#e4e3de",
+        "tonalRamp": ["#0c0b08", "#252420", "#41403c", "#5e5e59", "#81807c", "#a6a5a0", "#cbcbc6", "#f0efe9"]
+      },
+      "slip": {
+        "role": "neutral",
+        "displayName": "浅纸灰 Slip",
+        "canonical": "#efeee9",
+        "tonalRamp": ["#0c0b08", "#252420", "#41403c", "#5e5e59", "#81807c", "#a6a5a0", "#cbcbc6", "#efeee9"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "油墨黑 Ink",
+        "canonical": "#16161a",
+        "tonalRamp": ["#0b0b0e", "#232428", "#3f3f44", "#5d5d62", "#7f8085", "#a4a4a9", "#cacad0", "#eeeef4"]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "淡墨 Ink Soft",
+        "canonical": "#56544c",
+        "tonalRamp": ["#0d0b06", "#26241d", "#424038", "#605e56", "#828078", "#a7a59c", "#cdcbc1", "#f1efe5"]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "栏线灰 Rule",
+        "canonical": "#a09c8c",
+        "tonalRamp": ["#0e0b02", "#272417", "#434032", "#615e4f", "#848071", "#a9a595", "#cfcbba", "#f3efdd"]
+      },
+      "rule-soft": {
+        "role": "neutral",
+        "displayName": "细线灰 Rule Soft",
+        "canonical": "#c4c1b4",
+        "tonalRamp": ["#0d0b04", "#27241a", "#424035", "#605e52", "#838074", "#a8a598", "#cecbbe", "#f2efe1"]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "控件边界灰 Rule Strong",
+        "canonical": "#84806f",
+        "tonalRamp": ["#0e0b01", "#282416", "#444031", "#625e4e", "#84806f", "#a9a593", "#cfcbb8", "#f3efdc"]
+      },
+      "proof": {
+        "role": "primary",
+        "displayName": "套红 Proof Red",
+        "canonical": "#b8232a",
+        "tonalRamp": ["#1f0001", "#4b0006", "#7c0010", "#ae1421", "#d84544", "#ff716b", "#ffb5ae", "#ffe9e6"]
+      },
+      "up": {
+        "role": "semantic",
+        "displayName": "涨 Up",
+        "canonical": "#b8232a",
+        "tonalRamp": ["#1f0001", "#4b0006", "#7c0010", "#ae1421", "#d84544", "#ff716b", "#ffb5ae", "#ffe9e6"]
+      },
+      "down": {
+        "role": "semantic",
+        "displayName": "跌 Down",
+        "canonical": "#1c6b4a",
+        "tonalRamp": ["#000f07", "#002c1b", "#004d31", "#1f6d4c", "#47916e", "#6db792", "#93deb7", "#c2ffde"]
+      },
+      "warn": {
+        "role": "secondary",
+        "displayName": "警示褐 Warning Ochre",
+        "canonical": "#7d4e0c",
+        "tonalRamp": ["#140800", "#361e00", "#5b3600", "#815212", "#a6753b", "#cd995f", "#f5bf84", "#ffebd6"]
+      },
+      "warn-soft": {
+        "role": "secondary",
+        "displayName": "警示褐底 Warning Ochre Soft",
+        "canonical": "#e9dcc3",
+        "tonalRamp": ["#110a00", "#2c220e", "#493e29", "#675c46", "#8b7f68", "#afa38b", "#d6c9b0", "#faedd4"]
+      },
+      "alert": {
+        "role": "secondary",
+        "displayName": "告警红 Alert Red",
+        "canonical": "#b8232a",
+        "tonalRamp": ["#1f0001", "#4b0006", "#7c0010", "#ae1421", "#d84544", "#ff716b", "#ffb5ae", "#ffe9e6"]
+      },
+      "alert-soft": {
+        "role": "secondary",
+        "displayName": "告警红底 Alert Red Soft",
+        "canonical": "#ecd7d4",
+        "tonalRamp": ["#140706", "#2f201e", "#4c3b39", "#6b5956", "#8e7b78", "#b39f9d", "#dac5c2", "#fee9e6"]
+      },
+      "ok": {
+        "role": "tertiary",
+        "displayName": "苔绿 Moss Green",
+        "canonical": "#1c6b4a",
+        "tonalRamp": ["#000f07", "#002c1b", "#004d31", "#1f6d4c", "#47916e", "#6db792", "#93deb7", "#c2ffde"]
+      }
+    },
+    "typographyMeta": {
+      "masthead": { "displayName": "报头 Masthead", "purpose": "全篇只用于报头「蓄势」两个字，配 `.press` 铅字压痕。" },
+      "title": { "displayName": "稿件标题 Title", "purpose": "当前版次稿件栏的标题。" },
+      "head": { "displayName": "标题 Head", "purpose": "稿件框标题、弹窗标题、号外条、稿件目录条上的版次号与标题。" },
+      "lede": { "displayName": "导语 Lede", "purpose": "每步开头那句白话说明、复盘总结正文、持仓卡标的名。" },
+      "body": { "displayName": "正文 Body", "purpose": "正文、表格内容、按钮文字，全篇默认字号。" },
+      "note": { "displayName": "注释 Note", "purpose": "字段标签、表头、图注、告警文字。" },
+      "micro": { "displayName": "小注 Micro", "purpose": "报头运行信息、版次状态行、AI 免责声明、戳记。" },
+      "mono": { "displayName": "等宽 Mono", "purpose": "价格、比例、代码、公式块、报头期号与版本行。" }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "全篇唯一的曲线：弹窗压印、悬停提示入场、号外条落下。" },
+      { "name": "duration-control", "value": "100ms", "purpose": "按钮与链接的底色、边框、字色过渡。" },
+      { "name": "duration-tooltip-in", "value": "160ms", "purpose": "悬停提示入场。" },
+      { "name": "duration-tooltip-out", "value": "100ms", "purpose": "悬停提示退场。" },
+      { "name": "duration-band", "value": "240ms", "purpose": "号外条从上方落下并展开。" },
+      { "name": "duration-dialog", "value": "260ms", "purpose": "弹窗面板压印上来与折回。" },
+      { "name": "duration-share", "value": "300ms", "purpose": "图版占比变化与同步进度条宽度。" },
+      { "name": "reduced-motion-clamp", "value": "0.01ms", "purpose": "`prefers-reduced-motion: reduce` 时全局把动画与过渡时长收到最短。" }
+    ],
+    "breakpoints": [
+      { "name": "flow-split", "value": "56rem", "purpose": "主流程版心的容器查询阈值：容器宽到 56rem 以上时图版与稿件栏左右并排，窄了上下叠放。" },
+      { "name": "form-wide", "value": "64rem", "purpose": "表单列数切换：窄处两列，宽到 64rem 时三到四列。" }
+    ]
+  },
+  "components": [
+    {
+      "name": "主操作按钮 Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "套红实底的主操作，一个区域里只放一个。",
+      "html": "<button class=\"ds-btn-primary\">开始筛选</button>",
+      "css": ".ds-btn-primary{display:inline-flex;flex-shrink:0;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border:1px solid var(--color-proof,#b8232a);border-radius:0;background:var(--color-proof,#b8232a);color:var(--color-paper,#e4e3de);font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-body,13px);line-height:var(--text-body--line-height,1.6);font-weight:500;cursor:pointer;transition:background-color .1s,border-color .1s,color .1s}.ds-btn-primary:hover{background:var(--color-ink,#16161a);border-color:var(--color-ink,#16161a);color:var(--color-paper,#e4e3de)}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:2px solid var(--color-proof,#b8232a);outline-offset:2px}.ds-btn-primary:disabled{opacity:.4;pointer-events:none}"
+    },
+    {
+      "name": "次要按钮 Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "浅纸灰底的并列操作，例如导出、同步、刷新。",
+      "html": "<button class=\"ds-btn-secondary\">导出 PNG</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;flex-shrink:0;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border:1px solid var(--color-ink,#16161a);border-radius:0;background:var(--color-slip,#efeee9);color:var(--color-ink,#16161a);font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-body,13px);line-height:var(--text-body--line-height,1.6);font-weight:500;cursor:pointer;transition:background-color .1s,border-color .1s,color .1s}.ds-btn-secondary:hover{background:var(--color-ink,#16161a);color:var(--color-paper,#e4e3de)}.ds-btn-secondary:active{transform:translateY(1px)}.ds-btn-secondary:focus-visible{outline:2px solid var(--color-proof,#b8232a);outline-offset:2px}"
+    },
+    {
+      "name": "描边按钮 Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "透明底的描边按钮，工具条上未选中的工具与周期。",
+      "html": "<button class=\"ds-btn-outline\" aria-pressed=\"false\">支撑区</button>",
+      "css": ".ds-btn-outline{display:inline-flex;flex-shrink:0;align-items:center;justify-content:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--color-ink,#16161a);border-radius:0;background:transparent;color:var(--color-ink,#16161a);font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-note,12px);line-height:var(--text-note--line-height,1.5);font-weight:500;cursor:pointer;transition:background-color .1s,border-color .1s,color .1s}.ds-btn-outline:hover{background:var(--color-ink,#16161a);color:var(--color-paper,#e4e3de)}.ds-btn-outline:active{transform:translateY(1px)}.ds-btn-outline:focus-visible{outline:2px solid var(--color-proof,#b8232a);outline-offset:2px}"
+    },
+    {
+      "name": "弱操作按钮 Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "无底无边的弱操作，例如删除、退出标注、放弃。",
+      "html": "<button class=\"ds-btn-ghost\">删除</button>",
+      "css": ".ds-btn-ghost{display:inline-flex;flex-shrink:0;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border:1px solid transparent;border-radius:0;background:transparent;color:var(--color-ink-soft,#56544c);font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-body,13px);line-height:var(--text-body--line-height,1.6);font-weight:500;cursor:pointer;transition:background-color .1s,border-color .1s,color .1s}.ds-btn-ghost:hover{color:var(--color-ink,#16161a);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:4px}.ds-btn-ghost:focus-visible{outline:2px solid var(--color-proof,#b8232a);outline-offset:2px}"
+    },
+    {
+      "name": "输入框 Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "待填的一栏：方角、1px 控件边界灰、浅纸灰底。",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">买入价（元/股）</span><input class=\"ds-input\" value=\"20.00\" /></label>",
+      "css": ".ds-field{display:flex;min-width:0;flex-direction:column;gap:4px}.ds-field-label{font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-note,12px);font-weight:500;color:var(--color-ink-soft,#56544c)}.ds-input{height:34px;width:100%;padding:0 10px;border:1px solid var(--color-rule-strong,#84806f);border-radius:0;background:var(--color-slip,#efeee9);color:var(--color-ink,#16161a);font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-body,13px);font-variant-numeric:tabular-nums;transition:border-color .1s}.ds-input::placeholder{color:var(--color-ink-soft,#56544c)}.ds-input:focus{border-color:var(--color-proof,#b8232a);outline:none}.ds-input:focus-visible{outline:2px solid var(--color-proof,#b8232a);outline-offset:2px}.ds-input:disabled{cursor:not-allowed;opacity:.5}"
+    },
+    {
+      "name": "戳记 Stamp（告警档）",
+      "kind": "chip",
+      "refersTo": "stamp-danger",
+      "description": "加了框的状态小签；告警档是实底反白，用于止损这类需要立刻处理的状态。",
+      "html": "<span class=\"ds-stamp-danger\">止损</span>",
+      "css": ".ds-stamp-danger{display:inline-flex;flex-shrink:0;align-items:center;justify-content:center;gap:4px;height:20px;padding:0 6px;border:1px solid var(--color-alert,#b8232a);border-radius:0;background:var(--color-alert,#b8232a);color:var(--color-paper,#e4e3de);font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-micro,11px);line-height:var(--text-micro--line-height,1.45);font-weight:500;white-space:nowrap}"
+    },
+    {
+      "name": "稿件框 Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "版面上一则加了框的稿件：1px 栏线外框，题头下面一条 2px 油墨线，宋体标题在左、动作在右。",
+      "html": "<section class=\"ds-panel\"><header class=\"ds-panel-head\"><h2 class=\"ds-panel-title\">交易计划卡</h2><div class=\"ds-panel-action\"><span class=\"ds-stamp-neutral\">草稿</span></div></header><div class=\"ds-panel-body\"><p>计划风险是理论值，滑点会让实际亏损超过预设的账户风险。</p></div></section>",
+      "css": ".ds-panel{display:flex;min-width:0;flex-direction:column;border:1px solid var(--color-rule,#a09c8c);border-radius:0;background:var(--color-paper,#e4e3de);color:var(--color-ink,#16161a)}.ds-panel-head{display:flex;flex:none;flex-wrap:wrap;align-items:baseline;column-gap:12px;row-gap:4px;border-bottom:2px solid var(--color-ink,#16161a);padding:10px 14px}.ds-panel-title{margin:0;font-family:var(--font-display,\"Songti SC\",\"SimSun\",serif);font-size:var(--text-head,16px);line-height:var(--text-head--line-height,1.35);font-weight:700;color:var(--color-ink,#16161a)}.ds-panel-action{margin-left:auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px}.ds-panel-body{display:flex;flex-direction:column;gap:14px;padding:14px;font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-body,13px);line-height:var(--text-body--line-height,1.6)}.ds-stamp-neutral{display:inline-flex;flex-shrink:0;align-items:center;justify-content:center;gap:4px;height:20px;padding:0 6px;border:1px solid var(--color-rule,#a09c8c);border-radius:0;background:var(--color-slip,#efeee9);color:var(--color-ink-soft,#56544c);font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-micro,11px);line-height:var(--text-micro--line-height,1.45);font-weight:500;white-space:nowrap}"
+    },
+    {
+      "name": "稿件目录格 Step Chip（当前版次）",
+      "kind": "nav",
+      "refersTo": "step-chip-active",
+      "description": "主流程顶部四个版次格之一：当前格压 2px 套红上边线、底色下凹一档、版次号与标题套红。",
+      "html": "<button class=\"ds-step-chip ds-step-chip-active\" role=\"tab\" aria-selected=\"true\"><span class=\"ds-step-chip-line\"><span class=\"ds-step-chip-index\">3</span><span class=\"ds-step-chip-title\">等买入信号</span></span><span class=\"ds-step-chip-status\">等待中</span></button>",
+      "css": ".ds-step-chip{display:flex;min-width:0;flex:1 1 0;flex-direction:column;gap:2px;padding:8px 12px;border:0;border-top:2px solid transparent;border-radius:0;background:var(--color-paper,#e4e3de);color:var(--color-ink,#16161a);text-align:left;font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);cursor:pointer;transition:background-color .1s}.ds-step-chip-line{display:flex;align-items:baseline;gap:6px}.ds-step-chip-index{font-family:var(--font-display,\"Songti SC\",\"SimSun\",serif);font-size:var(--text-head,16px);font-weight:700;font-variant-numeric:tabular-nums}.ds-step-chip-title{font-family:var(--font-display,\"Songti SC\",\"SimSun\",serif);font-size:var(--text-body,13px);font-weight:700}.ds-step-chip-status{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-micro,11px);color:var(--color-ink-soft,#56544c)}.ds-step-chip-active{border-top-color:var(--color-proof,#b8232a);background:var(--color-slip,#efeee9)}.ds-step-chip-active .ds-step-chip-index,.ds-step-chip-active .ds-step-chip-title{color:var(--color-proof,#b8232a)}.ds-step-chip:focus-visible{outline:2px solid var(--color-proof,#b8232a);outline-offset:-2px}"
+    },
+    {
+      "name": "报头版次条 Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "报头下五个版次并排，格子之间留 1px 缝露出控件边界灰；当前版次套红实底反白。",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-item-active\" href=\"#/\">主流程</a><a class=\"ds-nav-item\" href=\"#/plan\">计划卡</a><a class=\"ds-nav-item\" href=\"#/positions\">持仓跟踪</a></nav>",
+      "css": ".ds-nav{display:flex;flex-wrap:wrap;align-items:stretch;gap:1px;background:var(--color-rule-strong,#84806f)}.ds-nav-item{display:flex;align-items:center;padding:6px 14px;border-radius:0;background:var(--color-paper,#e4e3de);color:var(--color-ink-soft,#56544c);font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-body,13px);line-height:var(--text-body--line-height,1.6);text-decoration:none;transition:background-color .1s,color .1s}.ds-nav-item:hover{background:var(--color-slip,#efeee9);color:var(--color-ink,#16161a)}.ds-nav-item-active{background:var(--color-proof,#b8232a);color:var(--color-paper,#e4e3de);font-weight:500}.ds-nav-item:focus-visible{outline:2px solid var(--color-proof,#b8232a);outline-offset:-2px}"
+    },
+    {
+      "name": "结果栏 Stat Grid",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "上下 2px 油墨线夹住的一栏读数：标签占固定 8.5rem 窄列，数值从同一条左边缘起排，等宽带 tabular。",
+      "html": "<dl class=\"ds-stat-grid\"><div class=\"ds-stat-row\"><dt class=\"ds-stat-label\">可买股数</dt><dd class=\"ds-stat-value\">1000<span class=\"ds-stat-hint\">按一手 100 股向下取整</span></dd></div><div class=\"ds-stat-row\"><dt class=\"ds-stat-label\">止损距离</dt><dd class=\"ds-stat-value\">2.50%</dd></div></dl>",
+      "css": ".ds-stat-grid{display:flex;flex-direction:column;margin:0;padding:0 12px;border-top:2px solid var(--color-ink,#16161a);border-bottom:2px solid var(--color-ink,#16161a);background:var(--color-slip,#efeee9);font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif)}.ds-stat-row{display:flex;align-items:baseline;column-gap:12px;padding:6px 0;border-bottom:1px solid var(--color-rule-soft,#c4c1b4)}.ds-stat-row:last-child{border-bottom:0}.ds-stat-label{flex:none;width:8.5rem;font-size:var(--text-note,12px);color:var(--color-ink-soft,#56544c)}.ds-stat-value{min-width:0;flex:1 1 auto;margin:0;font-family:var(--font-mono,\"SF Mono\",ui-monospace,Menlo,monospace);font-size:var(--text-head,16px);line-height:var(--text-head--line-height,1.35);font-weight:500;font-variant-numeric:tabular-nums;color:var(--color-ink,#16161a)}.ds-stat-hint{margin-left:8px;font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif);font-size:var(--text-micro,11px);font-weight:400;color:var(--color-ink-soft,#56544c)}"
+    },
+    {
+      "name": "号外条 Extra Band",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "第 3 步分钟线触发时落在版心上方的套红横条，全篇唯一一处整条套红。",
+      "html": "<div class=\"ds-extra\"><span class=\"ds-extra-label\">号外</span><span class=\"ds-extra-text\">分钟线触发于 09:41</span><span class=\"ds-extra-note\">可以进第 4 步算仓位</span></div>",
+      "css": ".ds-extra{display:flex;flex:none;flex-wrap:wrap;align-items:center;column-gap:12px;row-gap:4px;border:2px solid var(--color-proof,#b8232a);border-radius:0;background:var(--color-proof,#b8232a);padding:6px 12px;color:var(--color-paper,#e4e3de);font-family:var(--font-paper,-apple-system,BlinkMacSystemFont,\"PingFang SC\",sans-serif)}.ds-extra-label{font-family:var(--font-display,\"Songti SC\",\"SimSun\",serif);font-size:var(--text-head,16px);font-weight:700;letter-spacing:.3em}.ds-extra-text{font-size:var(--text-body,13px)}.ds-extra-note{margin-left:auto;font-size:var(--text-micro,11px)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "「铅字行情纸」（The Letterpress Market Sheet）",
+    "overview": "整页是一份每天出的行情纸。新闻纸灰铺满，油墨黑写字与画线，套红只落在四处：当前版次、主操作、涨、号外条。版面里没有圆角，也没有投影；分区靠 1px 栏线，分块靠 2px 油墨线，报头下面压一条粗加细的双线。每一个边界都是直线，每一块内容都有一圈框。\n\n字号拉开对比度，不靠留白：报头 30px，稿件标题 20px，小节标题 16px，正文 13px，注释 11–12px。宋体只出现在报头和标题上，正文走系统黑体，数字与代码走等宽并一律带 tabular，刷新与翻页时列不会左右跳动。结果行沿同一条左边缘排齐，一行读下来就是一组可以逐项对账的数。\n\n版面密度高，一屏里能并排放下图版、稿件正文、表格与告警。动效只做一件事：说明状态变了。压印、反白、落下，时长都在 100–300 毫秒之间，`prefers-reduced-motion` 打开时全局收敛。",
+    "keyCharacteristics": [
+      "三类颜色参与版面：新闻纸灰的底、油墨黑的字与线、套红的点睛。",
+      "零圆角、零投影，全部边界由 1px 与 2px 直线给出。",
+      "宋体标题、黑体正文、等宽数字的三字体分工。",
+      "版面按容器宽度分栏，图版占比随版次变化。",
+      "数字沿同一条左边缘排齐，标签占固定的 8.5rem 窄列。"
+    ],
+    "rules": [
+      { "name": "The 套红 Only Rule", "body": "套红只给四处：当前版次、主操作、涨、号外条。别处一律用墨色、栏线或状态三色。", "section": "colors" },
+      { "name": "The Red-Up Lock Rule", "body": "涨是红 #b8232a，跌是绿 #1c6b4a，任何版式与主题下都不交换。图版把颜色作为数值交给 klinecharts，读不到工具类，因此图版用色单独放在 `src/chart/palette.ts`。", "section": "colors" },
+      { "name": "The Visible Boundary Rule", "body": "控件的边界用控件边界灰，让框看得见；栏线灰与细线灰只做分区与分组，不承担控件轮廓。", "section": "colors" },
+      { "name": "The Two-Face Rule", "body": "宋体只给报头、稿件标题、小节标题与版次号；正文一律系统黑体；数字与代码一律等宽。三者的分工不越界。", "section": "typography" },
+      { "name": "The Tabular Rule", "body": "所有数字、价格、比例、代码加 tabular。等宽字体本身承担公式块与运行信息。", "section": "typography" },
+      { "name": "The Wide Tracking Rule", "body": "字距放宽只用在三处：报头刊名的负字距、刊名旁的 SPRINGLOAD 与号外条的 0.3em、图版标签与 AI 标签的 0.08em。", "section": "typography" },
+      { "name": "The Rule-Line Rule", "body": "分区用 1px 栏线，分块用 2px 油墨线。留白只调节奏，不承担分区。", "section": "layout" },
+      { "name": "The Container-Split Rule", "body": "版心按容器宽度分栏，不用视口断点。图版与稿件栏的宽度由 flex 占比给出，两者都从 0 基础宽度长出来。", "section": "layout" },
+      { "name": "The Share-By-Step Rule", "body": "图版占比是版次的一部分：30 / 44 / 54 / 32。改版次就改占比，收起面板时给 100。", "section": "layout" },
+      { "name": "The No-Shadow Rule", "body": "任何面都不加投影。要分出一块内容，就用栏线、重线或浅纸灰的底。", "section": "elevation" },
+      { "name": "The Flat-Top-Layer Rule", "body": "弹窗与提示的层级交给浏览器顶层与 fixed 定位，不用阴影模拟高度。", "section": "elevation" },
+      { "name": "The Square-Corner Rule", "body": "全篇 0 圆角。要区分形状，只用边线的粗细、虚实与颜色。", "section": "shapes" }
+    ],
+    "dos": [
+      "Do 用令牌，不写字面色值：`bg-paper`、`text-ink-soft`、`border-rule-strong`。",
+      "Do 分区用 1px 栏线，分块用 2px 油墨线，把一块内容压下去就用浅纸灰的底。",
+      "Do 每个数字、价格、比例、代码都加 tabular，并用等宽字体。",
+      "Do 把套红留给当前版次、主操作、涨、号外条这四处。",
+      "Do 给每个控件一条看得见的边界：控件边界灰对纸张 3.08:1、对浅纸灰 3.41:1。",
+      "Do 标题用宋体、正文用系统黑体、数字用等宽，三者的分工保持住。",
+      "Do 每个异步按钮都带进行时文案与一枚滚动的墨点，不要只把按钮变灰。",
+      "Do 风险与口径提示就地写在使用它的地方，免责声明固定出现在每一张 AI 卡片上。"
+    ],
+    "donts": [
+      "Don't 加圆角或投影；要分层就用栏线、重线与浅纸灰的底。",
+      "Don't 引入第二个强调色，也不要用颜色做装饰。",
+      "Don't 交换涨跌颜色：涨永远是红，跌永远是绿。",
+      "Don't 用视口断点切主流程的分栏，版心按容器宽度分栏。",
+      "Don't 用宋体排正文，也不要用黑体排报头与标题。",
+      "Don't 把动作按钮塞进标题元素里，标题的可访问名要保持干净。",
+      "Don't 在弹窗打开时给 `body` 加 `overflow: hidden`。",
+      "Don't 把图版占比写成一个固定值，它随版次变。"
+    ]
+  }
+}

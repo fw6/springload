@@ -11,6 +11,7 @@ pub mod prompts;
 pub use context::ExplainContext;
 
 use crate::error::CoreError;
+use crate::market::Market;
 use crate::storage::{now, Database};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, OnceLock};
@@ -121,6 +122,7 @@ pub fn explain<F>(
     client: F,
     code: &str,
     scope: Scope,
+    market: Market,
 ) -> AiResult<Explanation>
 where
     F: FnOnce() -> AiResult<Arc<dyn ChatClient>>,
@@ -136,7 +138,7 @@ where
         });
     }
     let client = client()?;
-    generate(&conn, client.as_ref(), code, scope, &context)
+    generate(&conn, client.as_ref(), code, scope, &context, market)
 }
 
 /// 跳过缓存，重新生成一次并覆盖缓存。生成失败时不写缓存，也不沿用上一次的结果。
@@ -145,6 +147,7 @@ pub fn explain_retry<F>(
     client: F,
     code: &str,
     scope: Scope,
+    market: Market,
 ) -> AiResult<Explanation>
 where
     F: FnOnce() -> AiResult<Arc<dyn ChatClient>>,
@@ -152,7 +155,7 @@ where
     let conn = db.conn()?;
     let context = ready_context(&conn, code, scope)?;
     let client = client()?;
-    generate(&conn, client.as_ref(), code, scope, &context)
+    generate(&conn, client.as_ref(), code, scope, &context, market)
 }
 
 /// 让某只股票某一步的解释缓存失效（第 2 步增删或拖动标注后由卡片调用）。
@@ -182,8 +185,9 @@ fn generate(
     code: &str,
     scope: Scope,
     context: &ExplainContext,
+    market: Market,
 ) -> AiResult<Explanation> {
-    let prompt = prompts::build(scope, context);
+    let prompt = prompts::build(scope, context, market);
     let output = client.extract_explanation(&prompt)?;
     let entry = cache::CacheEntry {
         text: output.text,

@@ -121,7 +121,7 @@ function renderPlan() {
 /** 表里的「标签 → 值」。 */
 function fields(container: HTMLElement): Record<string, string> {
   const out: Record<string, string> = {};
-  container.querySelectorAll("table.grid tbody tr").forEach((row) => {
+  container.querySelectorAll("table tbody tr").forEach((row) => {
     const cells = row.querySelectorAll("td");
     out[cells[0].textContent ?? ""] = cells[1].textContent ?? "";
   });
@@ -233,7 +233,7 @@ describe("交易计划卡", () => {
 
 describe("计划卡文本", () => {
   it("带上三个参考价、减仓安排与统计口径", () => {
-    const text = cardToText(card, { ema21: 20.05, avwap: 20.0, prevHigh: 20.1 }, "19.90 ~ 20.10");
+    const text = cardToText(card, { ema21: 20.05, avwap: 20.0, prevHigh: 20.1 }, "19.90 ~ 20.10", "元");
     expect(text).toContain("支撑区价格：19.90 ~ 20.10");
     expect(text).toContain("AVWAP / EMA21 / 前期高点：20.00 / 20.05 / 20.10");
     expect(text).toContain("止损距离：2.50%");
@@ -242,6 +242,6 @@ describe("计划卡文本", () => {
   });
 
   it("没有参考价时用破折号占位", () => {
-    expect(cardToText(card, null, "未标注")).toContain("AVWAP / EMA21 / 前期高点：—");
+    expect(cardToText(card, null, "未标注", "元")).toContain("AVWAP / EMA21 / 前期高点：—");
   });
 });

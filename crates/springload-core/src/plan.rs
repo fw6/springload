@@ -4,6 +4,7 @@
 //! `trade_log` 的入场记录。命令层只做参数转换与错误文案。
 
 use crate::error::{CoreError, Result};
+use crate::market::Market;
 use crate::sizing::{self, ReducePlan, SizingInput};
 use crate::storage::trade_log::TradeLogEntry;
 use crate::storage::trade_plan::TradePlan;
@@ -59,14 +60,14 @@ pub struct PlanCard {
 }
 
 /// 按入参算仓位并写一条计划。新建时状态是草稿，改已有计划时保留原状态。
-pub fn save(conn: &Connection, input: &PlanInput) -> Result<TradePlan> {
+pub fn save(conn: &Connection, input: &PlanInput, market: Market) -> Result<TradePlan> {
     let sizing_input = SizingInput {
         entry: input.entry,
         stop: input.stop,
         account: input.account,
         risk_pct: input.risk_pct,
     };
-    let result = sizing::size(&sizing_input)?;
+    let result = sizing::size(&sizing_input, market)?;
 
     let existing = match &input.id {
         Some(id) if !id.is_empty() => trade_plan::get(conn, id)?,

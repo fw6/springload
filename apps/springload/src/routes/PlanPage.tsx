@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { NavLink, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { toMessage } from "../api/invoke";
 import {
   planCard,
@@ -11,7 +11,13 @@ import {
   type PlanStatus,
 } from "../api/plan";
 import { supportRefs, supportZonesGet, type ZoneRefs } from "../api/zone";
+import { DataTable, Td, Tr } from "../components/DataTable";
+import { Panel, SectionHead } from "../components/Panel";
 import { TermHint } from "../components/TermHint";
+import { Alert, AlertContent, AlertDescription, AlertIcon } from "../components/ui/alert";
+import { Button } from "../components/ui/button";
+import { Stamp, type StampStatus } from "../components/ui/stamp";
+import { useCurrency } from "../copy/MarketContext";
 import { riskNotes } from "../copy/riskNotes";
 
 /** 状态的中文名。 */
@@ -22,12 +28,19 @@ export const STATUS_LABELS: Record<PlanStatus, string> = {
   abandoned: "已放弃",
 };
 
+const STATUS_TONE: Record<PlanStatus, StampStatus> = {
+  draft: "neutral",
+  triggered: "info",
+  executed: "success",
+  abandoned: "warning",
+};
+
 /** 价格保留两位小数。 */
 function price(value: number): string {
   return value.toFixed(2);
 }
 
-/** 金额按元展示。 */
+/** 金额按本市场货币展示。 */
 function money(value: number): string {
   return value.toFixed(2);
 }
@@ -48,8 +61,13 @@ function refsText(refs: ZoneRefs | null): string {
   return `${price(refs.avwap ?? 0)} / ${price(refs.ema21 ?? 0)} / ${price(refs.prevHigh ?? 0)}`;
 }
 
-/** 把计划卡拼成可以带走的纯文本。 */
-export function cardToText(card: PlanCard, refs: ZoneRefs | null, zone: string): string {
+/** 把计划卡拼成可以带走的纯文本。金额带上本市场的货币名。 */
+export function cardToText(
+  card: PlanCard,
+  refs: ZoneRefs | null,
+  zone: string,
+  currency: string,
+): string {
   const plan = card.plan;
   return [
     `交易计划卡 · ${plan.code} ${card.name ?? ""}`.trim(),
@@ -61,7 +79,7 @@ export function cardToText(card: PlanCard, refs: ZoneRefs | null, zone: string):
     `止损价：${price(plan.stop)}`,
     `3R / 5R 目标位：${price(plan.t3)} / ${price(plan.t5)}`,
     `仓位股数：${plan.shares} 股`,
-    `投入金额：${money(plan.capital)} 元`,
+    `投入金额：${money(plan.capital)} ${currency}`,
     `止损距离：${pct(plan.stopDistance)}`,
     `计划风险（占账户）：${pct(card.actualRiskPct)}`,
     `减仓安排：3R 卖 ${card.reduce.shares3r} 股、5R 再卖 ${card.reduce.shares5r} 股，剩余 ${card.reduce.remaining} 股跟随 9 日均线`,
@@ -71,12 +89,13 @@ export function cardToText(card: PlanCard, refs: ZoneRefs | null, zone: string):
 
 /** 计划卡：把第 4 步的结果打包成一页，可以复制、导出、存草稿、确认执行。 */
 export default function PlanPage() {
+  const currency = useCurrency();
   const [card, setCard] = useState<PlanCard | null>(null);
   const [refs, setRefs] = useState<ZoneRefs | null>(null);
   const [zone, setZone] = useState<string>("未标注");
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, startBusy] = useTransition();
   const sheet = useRef<HTMLDivElement>(null);
   const [searchParams] = useSearchParams();
   const requestedId = searchParams.get("id");
@@ -111,33 +130,36 @@ export default function PlanPage() {
     void load();
   }, [load]);
 
-  const run = useCallback(async (action: () => Promise<string>) => {
-    setBusy(true);
-    try {
-      setStatus(await action());
-      setError(null);
-    } catch (cause: unknown) {
-      setError(toMessage(cause));
-    } finally {
-      setBusy(false);
-    }
+  const run = useCallback((action: () => Promise<string>) => {
+    startBusy(async () => {
+      try {
+        setStatus(await action());
+        setError(null);
+      } catch (cause: unknown) {
+        setError(toMessage(cause));
+      }
+    });
   }, []);
 
-  const copyText = useCallback(async () => {
+  const copyText = useCallback(() => {
     if (card === null) return;
-    await run(async () => {
-      await navigator.clipboard.writeText(cardToText(card, refs, zone));
+    run(async () => {
+      await navigator.clipboard.writeText(cardToText(card, refs, zone, currency));
       return "已复制为文本。";
     });
   }, [card, refs, run, zone]);
 
   const exportAs = useCallback(
-    async (kind: "png" | "pdf") => {
+    (kind: "png" | "pdf") => {
       const node = sheet.current;
       if (card === null || node === null) return;
-      await run(async () => {
+      run(async () => {
         const { toPng } = await import("html-to-image");
-        const dataUrl = await toPng(node, { backgroundColor: "#ffffff" });
+        // 导出的底要与版面同色，从令牌里取，不写死。
+        const paper =
+          getComputedStyle(document.documentElement).getPropertyValue("--color-paper").trim() ||
+          "#ffffff";
+        const dataUrl = await toPng(node, { backgroundColor: paper });
         const name = `springload-plan-${card.plan.code}`;
         if (kind === "png") {
           const link = document.createElement("a");
@@ -160,9 +182,9 @@ export default function PlanPage() {
     [card, run],
   );
 
-  const saveDraft = useCallback(async () => {
+  const saveDraft = useCallback(() => {
     if (card === null) return;
-    await run(async () => {
+    run(async () => {
       const saved = await planSave({
         id: card.plan.id,
         code: card.plan.code,
@@ -179,9 +201,9 @@ export default function PlanPage() {
   }, [card, load, run]);
 
   const changeStatus = useCallback(
-    async (next: PlanStatus, message: string) => {
+    (next: PlanStatus, message: string) => {
       if (card === null) return;
-      await run(async () => {
+      run(async () => {
         await planSetStatus(card.plan.id, next);
         await load();
         return message;
@@ -190,9 +212,9 @@ export default function PlanPage() {
     [card, load, run],
   );
 
-  const confirm = useCallback(async () => {
+  const confirm = useCallback(() => {
     if (card === null) return;
-    await run(async () => {
+    run(async () => {
       const entry = await planConfirmExecuted(card.plan.id, new Date().toISOString().slice(0, 10));
       await load();
       return `已执行，交易日志写入入场记录 ${entry.id}。`;
@@ -201,27 +223,33 @@ export default function PlanPage() {
 
   if (card === null) {
     return (
-      <div className="page">
-        <div className="chart-card" style={{ maxWidth: 760 }}>
-          <div className="panel-head">
-            <h2>交易计划卡</h2>
+      <div className="h-full overflow-auto p-4">
+        <Panel title="交易计划卡" className="max-w-[46rem]">
+          <Alert variant="info">
+            <AlertIcon />
+            <AlertContent>
+              <AlertDescription>
+                还没有计划。先走完主流程四步，在第 4 步点「生成计划卡」。
+              </AlertDescription>
+            </AlertContent>
+          </Alert>
+          {error !== null ? (
+            <Alert variant="destructive">
+              <AlertIcon />
+              <AlertContent>
+                <AlertDescription>{error}</AlertDescription>
+              </AlertContent>
+            </Alert>
+          ) : null}
+          <div>
+            <Link
+              to="/"
+              className="inline-flex h-7 items-center border border-ink bg-slip px-2.5 text-note font-medium text-ink transition-colors hover:bg-ink hover:text-paper"
+            >
+              回到主流程
+            </Link>
           </div>
-          <div className="panel-body">
-            <div className="notice" data-tone="info">
-              还没有计划。先走完主流程四步，在第 4 步点「生成计划卡」。
-            </div>
-            {error !== null ? (
-              <div className="notice" data-tone="risk">
-                {error}
-              </div>
-            ) : null}
-            <div className="panel-foot">
-              <NavLink className="primary" to="/">
-                回到主流程
-              </NavLink>
-            </div>
-          </div>
-        </div>
+        </Panel>
       </div>
     );
   }
@@ -253,7 +281,7 @@ export default function PlanPage() {
         ["止损价", price(plan.stop)],
         ["3R / 5R 目标位", `${price(plan.t3)} / ${price(plan.t5)}`],
         ["仓位股数", `${plan.shares} 股`],
-        ["投入金额", `${money(plan.capital)} 元`],
+        ["投入金额", `${money(plan.capital)} ${currency}`],
         ["止损距离", pct(plan.stopDistance)],
         ["计划风险（占账户）", pct(card.actualRiskPct)],
       ],
@@ -261,101 +289,97 @@ export default function PlanPage() {
   ];
 
   return (
-    <div className="page">
-      <div className="chart-card" style={{ maxWidth: 760 }}>
-        <div className="panel-head">
-          <h2>交易计划卡</h2>
-          <span className="toolbar-spacer" />
-          <span className="pill" data-tone="info">
+    <div className="h-full overflow-auto p-4">
+      <Panel
+        title="交易计划卡"
+        className="max-w-[46rem]"
+        action={
+          <Stamp status={STATUS_TONE[plan.status]} size="sm">
             {STATUS_LABELS[plan.status]}
-          </span>
+          </Stamp>
+        }
+      >
+        <div ref={sheet} className="flex flex-col gap-3.5">
+          {groups.map((group) => (
+            <div key={group.title} className="flex flex-col gap-1.5">
+              <SectionHead>{group.title}</SectionHead>
+              <DataTable>
+                <tbody>
+                  {group.fields.map(([label, value]) => (
+                    <Tr key={label}>
+                      <Td className="w-[13rem] text-ink-soft">{label}</Td>
+                      <Td>{value}</Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </DataTable>
+            </div>
+          ))}
+          <Alert variant="info">
+            <AlertContent>
+              <AlertDescription>
+                减仓安排：3R 卖 {card.reduce.shares3r} 股、5R 再卖 {card.reduce.shares5r} 股，剩余{" "}
+                {card.reduce.remaining} 股跟随 9 日均线。
+                <br />
+                {riskNotes.costFree}
+                {riskNotes.slippage}
+              </AlertDescription>
+            </AlertContent>
+          </Alert>
         </div>
-        <div className="panel-body">
-          <div ref={sheet}>
-            {groups.map((group) => (
-              <div key={group.title}>
-                <h3 className="block-title">{group.title}</h3>
-                <table className="grid">
-                  <tbody>
-                    {group.fields.map(([label, value]) => (
-                      <tr key={label}>
-                        <td className="left" style={{ color: "#64748b", width: 220 }}>
-                          {label}
-                        </td>
-                        <td className="left mono">{value}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-            <div className="notice" data-tone="info">
-              减仓安排：3R 卖 {card.reduce.shares3r} 股、5R 再卖 {card.reduce.shares5r} 股，剩余{" "}
-              {card.reduce.remaining} 股跟随 9 日均线。
-              <br />
-              {riskNotes.costFree}
-              {riskNotes.slippage}
-            </div>
-          </div>
 
-          {error !== null ? (
-            <div className="notice" data-tone="risk">
-              {error}
-            </div>
-          ) : null}
-          {status !== null ? (
-            <div className="notice" data-tone="info">
-              {status}
-            </div>
-          ) : null}
+        {error !== null ? (
+          <Alert variant="destructive">
+            <AlertIcon />
+            <AlertContent>
+              <AlertDescription>{error}</AlertDescription>
+            </AlertContent>
+          </Alert>
+        ) : null}
+        {status !== null ? (
+          <Alert variant="info">
+            <AlertContent>
+              <AlertDescription>{status}</AlertDescription>
+            </AlertContent>
+          </Alert>
+        ) : null}
 
-          <p className="hint">
-            计划风险是理论值，<TermHint termKey="slippage" />
-            会让实际亏损超过预设的账户风险。
-          </p>
+        <p className="text-note text-ink-soft">
+          计划风险是理论值，<TermHint termKey="slippage" />
+          会让实际亏损超过预设的账户风险。
+        </p>
 
-          <div className="panel-foot" style={{ borderTop: "none", padding: 0 }}>
-            <button type="button" className="primary" onClick={() => void copyText()} disabled={busy}>
-              复制为文本
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => void exportAs("png")}
-              disabled={busy}
-            >
-              导出 PNG
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => void exportAs("pdf")}
-              disabled={busy}
-            >
-              导出 PDF
-            </button>
-            <button type="button" className="ghost" onClick={() => void saveDraft()} disabled={busy}>
-              存为草稿
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => void changeStatus("abandoned", "已标记为放弃。")}
-              disabled={busy}
-            >
-              放弃
-            </button>
-            <button
-              type="button"
-              className="primary"
-              onClick={() => void confirm()}
-              disabled={busy || plan.status === "executed"}
-            >
-              {plan.status === "executed" ? "已执行" : "确认已执行"}
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={() => copyText()} disabled={busy}>
+            复制为文本
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => exportAs("png")} disabled={busy}>
+            导出 PNG
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => exportAs("pdf")} disabled={busy}>
+            导出 PDF
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => saveDraft()} disabled={busy}>
+            存为草稿
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => changeStatus("abandoned", "已标记为放弃。")}
+            disabled={busy}
+          >
+            放弃
+          </Button>
+          <Button
+            size="sm"
+            className="ml-auto"
+            onClick={() => confirm()}
+            disabled={busy || plan.status === "executed"}
+          >
+            {plan.status === "executed" ? "已执行" : "确认已执行"}
+          </Button>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }

@@ -97,7 +97,7 @@ const report: ScreenReport = {
 let watchlist: WatchlistRow[] = [];
 
 /** 把 invoke 换成桩：筛选取固定报告，观察名单用一个可变数组模拟。 */
-function stub() {
+function stub(screenReport: ScreenReport = report) {
   watchlist = [];
   mockedInvoke.mockImplementation((async (command: string, args?: Record<string, unknown>) => {
     switch (command) {
@@ -110,20 +110,23 @@ function stub() {
       case "settings_update":
         return settingsStub;
       case "screen_last":
-        return report;
+        return screenReport;
       case "screen_stocks":
-        return { ...report, universe: 30, elapsedMs: 20 };
+        return { ...screenReport, universe: 30, elapsedMs: 20 };
       case "watchlist_get":
         return watchlist;
       case "watchlist_add": {
         const code = String(args?.code);
-        const row = [...report.picked, ...report.rejected].find((item) => item.code === code)!;
+        const row = [...screenReport.picked, ...screenReport.rejected].find(
+          (item) => item.code === code,
+        );
+        if (row === undefined) return undefined;
         watchlist = [
           ...watchlist,
           {
             code: row.code,
             name: row.name,
-            addedAt: report.ranAt,
+            addedAt: screenReport.ranAt,
             c1: row.c1,
             c2: row.c2,
             c3: row.c3,
@@ -150,6 +153,22 @@ function stub() {
   }) as never);
 }
 
+/** 一份未入选行数很多的报告，用来验证窗口化渲染。 */
+function crowdedReport(count: number): ScreenReport {
+  const sample = report.rejected[1] as NonNullable<(typeof report.rejected)[number]>;
+  return {
+    ranAt: report.ranAt,
+    universe: count,
+    elapsedMs: 1,
+    picked: [],
+    rejected: Array.from({ length: count }, (_, index) => ({
+      ...sample,
+      code: String(600100 + index),
+      name: `股票${index}`,
+    })),
+  };
+}
+
 function renderFlow() {
   return renderAt(
     "/",
@@ -159,11 +178,11 @@ function renderFlow() {
   );
 }
 
-/** 一张表里的代码列，按显示顺序。 */
+/** 一张表里的代码列，按显示顺序。窗口化时垫高的空行不算。 */
 function codesOf(container: HTMLElement, tableIndex: number): string[] {
-  const table = container.querySelectorAll("table.grid")[tableIndex];
-  return Array.from(table.querySelectorAll("tbody tr")).map(
-    (row) => row.querySelector("td")!.textContent ?? "",
+  const table = container.querySelectorAll("table")[tableIndex];
+  return Array.from(table.querySelectorAll("tbody tr:not([aria-hidden])")).map(
+    (row) => row.querySelector("td")?.textContent ?? "",
   );
 }
 
@@ -184,10 +203,29 @@ describe("第 1 步：筛选表", () => {
     expect(screen.getByText("跑在 23 只股票上，用了 12 毫秒。")).toBeTruthy();
 
     await waitFor(() => {
-      expect(container.querySelectorAll("table.grid")).toHaveLength(2);
+      expect(container.querySelectorAll("table")).toHaveLength(2);
     });
     expect(codesOf(container, 0)).toEqual(["600001", "600002"]);
     expect(codesOf(container, 1)).toEqual(["600003", "600004"]);
+  });
+
+  it("未入选上千行时只挂视口附近那几行，滚动条长度仍按全部行数给", async () => {
+    stub(crowdedReport(2000));
+    const { container } = renderFlow();
+
+    await screen.findByText("未入选（2000 只）");
+
+    const table = container.querySelectorAll("table")[1];
+    const rows = Array.from(table.querySelectorAll("tbody tr:not([aria-hidden])"));
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThan(60);
+    expect(rows[0]?.getAttribute("aria-rowindex")).toBe("2");
+    expect(table.getAttribute("aria-rowcount")).toBe("2001");
+
+    // 没挂出来的那些行用一条不画线的空行垫高，滚动条长度才和全部行数对得上。
+    const spacer = table.querySelector("tbody tr[aria-hidden] td") as HTMLElement | null;
+    expect(spacer).not.toBeNull();
+    expect(Number.parseFloat(spacer?.style.height ?? "0")).toBeGreaterThan(10000);
   });
 
   it("入选表逐条显示 C1~C4 的满足情况，未入选表写出差哪一条", async () => {
@@ -267,11 +305,11 @@ describe("第 1 步：筛选表", () => {
     fireEvent.click(rowOf("甲股"));
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /等待买入信号/ }).getAttribute("aria-disabled"),
+        screen.getByRole("tab", { name: /等待买入信号/ }).getAttribute("aria-disabled"),
       ).toBe("true");
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /等待买入信号/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /等待买入信号/ }));
 
     const dialog = await screen.findByRole("dialog");
     expect(dialog.textContent).toContain("第 3 步 · 等待买入信号");

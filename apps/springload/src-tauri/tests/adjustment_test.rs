@@ -1,17 +1,18 @@
 //! 复权维护命令的集成测试：命令注册、DTO 形状，以及过期检查与重算的完整流程。
 //!
-//! 过期检查与重算需要联网，命令层固定走真实网络。这里用两条路径覆盖：
-//! 命令本身用空输入通过 IPC 调用（不发起请求），完整流程用录制样本回放的抓取实现
-//! 直接调用 `springload-core` 的检查与重算，存储用临时 SQLite 文件。
+//! 命令本身用空输入通过 IPC 调用（不发起请求），完整流程用样本数据源直接调用
+//! `springload-core` 的检查与重算，存储用临时 SQLite 文件。
+//!
+//! 场景取 001309 德明利 2026-10-13 的除权除息，方案 `10转4股派15.00元`。
 
 use chrono::NaiveDate;
 use serde_json::{json, Value};
-use springload_core::adjustment::{self, AdjustmentFetch};
-use springload_core::error::{CoreError, Result as CoreResult};
-use springload_core::market::{eastmoney, Bar};
+use springload_core::adjustment;
+use springload_core::error::Result as CoreResult;
+use springload_core::market::{Bar, MinuteBar, QuoteSource};
 use springload_core::storage::bar::BarRow;
 use springload_core::storage::bar_sync_state::BarSyncState;
-use springload_core::storage::corporate_action;
+use springload_core::storage::corporate_action::{self, CorporateAction};
 use springload_core::storage::stock::Stock;
 use springload_core::storage::{bar, bar_sync_state, stock, Database};
 use springload_lib::commands;
@@ -21,19 +22,41 @@ use tauri::test::{get_ipc_response, mock_builder, mock_context, noop_assets, Moc
 use tauri::webview::InvokeRequest;
 use tauri::{App, WebviewWindow, WebviewWindowBuilder};
 
-const FIXTURES: &str = "../../../crates/springload-core/tests/fixtures";
-const RAW: &str = "eastmoney_kline_001309_raw.json";
-const QFQ: &str = "eastmoney_kline_001309_qfq.json";
-const TAIL: &str = "eastmoney_kline_001309_tail_qfq.json";
-const BONUS: &str = "eastmoney_sharebonus_001309.json";
+/// 除权日。
+const EX_DATE: &str = "2026-10-13";
+/// 除权日前的最后一根不复权日线。
+const PRE_EX_DATE: &str = "2026-10-12";
+const PRE_EX_CLOSE: f64 = 321.43;
+const EX_CLOSE: f64 = 233.78;
+const DIVIDEND: f64 = 1.5;
+const SPLIT: f64 = 0.4;
 
-fn fixture(name: &str) -> String {
-    let path = format!("{FIXTURES}/{name}");
-    std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("读取样本 {path}: {error}"))
+fn raw_bar(date: &str, close: f64) -> Bar {
+    Bar {
+        code: "001309".to_string(),
+        date: date.to_string(),
+        open: close,
+        high: close,
+        low: close,
+        close,
+        volume: 1_000_000.0,
+        amount: close * 1_000_000.0,
+    }
 }
 
-fn bars(name: &str) -> Vec<Bar> {
-    eastmoney::parse_kline(&fixture(name)).expect("解析样本").bars
+fn raw_history() -> Vec<Bar> {
+    vec![raw_bar(PRE_EX_DATE, PRE_EX_CLOSE), raw_bar(EX_DATE, EX_CLOSE)]
+}
+
+fn ex_event() -> CorporateAction {
+    CorporateAction {
+        code: "001309".to_string(),
+        ex_date: EX_DATE.to_string(),
+        dividend_per_share: DIVIDEND,
+        split_ratio: SPLIT,
+        pre_close: None,
+        recorded_at: "2026-10-13T00:00:00Z".to_string(),
+    }
 }
 
 fn rows(bars: &[Bar]) -> Vec<BarRow> {
@@ -51,39 +74,34 @@ fn rows(bars: &[Bar]) -> Vec<BarRow> {
         .collect()
 }
 
-/// 用录制样本回放的抓取实现。
-struct FakeFetch {
-    tail: String,
-    raw: String,
-    dividends: String,
-    dividends_fail: bool,
+/// 用样本回放的行情数据源。
+struct FakeSource {
+    raw: Vec<Bar>,
+    events: Vec<CorporateAction>,
 }
 
-impl FakeFetch {
-    fn new() -> Self {
-        Self {
-            tail: fixture(TAIL),
-            raw: fixture(RAW),
-            dividends: fixture(BONUS),
-            dividends_fail: false,
-        }
-    }
-}
-
-impl AdjustmentFetch for FakeFetch {
-    fn qfq_tail(&self, _code: &str, _lmt: u32) -> CoreResult<String> {
-        Ok(self.tail.clone())
+impl QuoteSource for FakeSource {
+    fn security_list(&self) -> CoreResult<Vec<springload_core::market::Security>> {
+        Ok(Vec::new())
     }
 
-    fn raw_history(&self, _code: &str, _beg: &str) -> CoreResult<String> {
+    fn daily_raw(&self, _code: &str, _beg: &str) -> CoreResult<Vec<Bar>> {
         Ok(self.raw.clone())
     }
 
-    fn dividends(&self, _code: &str) -> CoreResult<String> {
-        if self.dividends_fail {
-            return Err(CoreError::InvalidData("分红送配接口不可用".to_string()));
-        }
-        Ok(self.dividends.clone())
+    fn corporate_actions(&self, _code: &str) -> CoreResult<Vec<CorporateAction>> {
+        Ok(self.events.clone())
+    }
+
+    fn minute_bars(&self, _code: &str, _period: u32) -> CoreResult<Vec<MinuteBar>> {
+        Ok(Vec::new())
+    }
+}
+
+fn source() -> FakeSource {
+    FakeSource {
+        raw: raw_history(),
+        events: vec![ex_event()],
     }
 }
 
@@ -150,7 +168,7 @@ fn seed_stock(db: &Database) {
     .unwrap();
 }
 
-fn seed_state(db: &Database, last_bar_date: &str, tail_qfq: &str) {
+fn seed_state(db: &Database, last_bar_date: &str) {
     let conn = db.conn().unwrap();
     bar_sync_state::upsert(
         &conn,
@@ -158,21 +176,14 @@ fn seed_state(db: &Database, last_bar_date: &str, tail_qfq: &str) {
             code: "001309".to_string(),
             last_bar_date: Some(last_bar_date.to_string()),
             fetched_at: Some("2026-10-12T08:00:00Z".to_string()),
-            dktotal: Some(1037),
-            tail_qfq: Some(tail_qfq.to_string()),
             updated_at: "2026-10-12T08:00:00Z".to_string(),
         },
     )
     .unwrap();
 }
 
-fn tail_json(bars: &[Bar]) -> String {
-    let start = bars.len().saturating_sub(adjustment::TAIL_LEN as usize);
-    let tail: Vec<Value> = bars[start..]
-        .iter()
-        .map(|bar| json!([bar.date, bar.close]))
-        .collect();
-    Value::Array(tail).to_string()
+fn today() -> NaiveDate {
+    NaiveDate::from_ymd_opt(2026, 10, 13).unwrap()
 }
 
 #[test]
@@ -209,73 +220,52 @@ fn stale_check_flags_history_before_the_ex_date_and_resync_rewrites_it() {
     {
         // 本地存的是除权前抓的前复权历史，等于当时的不复权序列。
         let mut conn = db.conn().unwrap();
-        bar::upsert_many(&mut conn, &rows(&bars(RAW))).unwrap();
+        bar::upsert_many(&mut conn, &rows(&raw_history())).unwrap();
     }
-    seed_state(&db, "2026-10-12", &tail_json(&bars(RAW)));
+    seed_state(&db, PRE_EX_DATE);
 
-    let fetch = FakeFetch::new();
-    let stale = adjustment::detect_stale(&db, &fetch, 2).expect("检查过期");
+    let source = source();
+    let stale = adjustment::detect_stale(&db, &source, 2).expect("检查过期");
     assert_eq!(stale.len(), 1, "除权日之后应有股票判为过期");
     assert_eq!(stale[0].code, "001309");
-    assert_eq!(stale[0].ex_date.as_deref(), Some("2026-10-13"));
+    assert_eq!(stale[0].ex_date.as_deref(), Some(EX_DATE));
 
-    let report = adjustment::resync(
-        &db,
-        &fetch,
-        &["001309".to_string()],
-        NaiveDate::from_ymd_opt(2026, 10, 13).unwrap(),
-    )
-    .expect("重算");
+    let report = adjustment::resync(&db, &source, &["001309".to_string()], today()).expect("重算");
     assert!(report.errors.is_empty(), "{:?}", report.errors);
 
-    // 同一段历史被整体改写，与行情源的前复权序列一致。
+    // 同一段历史被整体改写：除权日前换算，除权日当天不变。
     let conn = db.conn().unwrap();
     let stored = bar::list_for_code(&conn, "001309").unwrap();
-    let expected = bars(QFQ);
-    assert_eq!(stored.len(), expected.len());
-    for (row, want) in stored.iter().zip(expected.iter()) {
-        assert!((row.close - want.close).abs() < 0.005, "{}", row.date);
-    }
+    assert_eq!(stored.len(), 2);
+    assert_eq!(stored[0].close, 228.52);
+    assert_eq!(stored[1].close, EX_CLOSE);
+
     // 除权除息事件与参考价都写进了表。
     let actions = corporate_action::list_for_code(&conn, "001309").unwrap();
     let latest = actions
         .iter()
-        .find(|action| action.ex_date == "2026-10-13")
-        .expect("应记录 2026-10-13 事件");
-    assert_eq!(latest.dividend_per_share, 1.5);
-    assert_eq!(latest.split_ratio, 0.4);
+        .find(|action| action.ex_date == EX_DATE)
+        .expect("应记录除权日事件");
+    assert_eq!(latest.dividend_per_share, DIVIDEND);
+    assert_eq!(latest.split_ratio, SPLIT);
     assert!((latest.pre_close.unwrap() - 228.521428571).abs() < 1e-6);
 
     // 重算后不再判过期。
-    assert!(adjustment::detect_stale(&db, &fetch, 2).unwrap().is_empty());
+    assert!(adjustment::detect_stale(&db, &source, 2).unwrap().is_empty());
 }
 
 #[test]
-fn stale_check_keeps_fresh_history() {
+fn stale_check_keeps_history_whose_events_are_recorded() {
     let dir = tempfile::tempdir().unwrap();
     let state = AppState::from_data_dir(dir.path().to_path_buf()).expect("装配应用状态");
     let db = state.db().clone();
     seed_stock(&db);
-    // 本地尾部与服务端一致，且最后一条已到除权日。
-    seed_state(&db, "2026-10-13", &tail_json(&bars(TAIL)));
+    seed_state(&db, EX_DATE);
+    {
+        let conn = db.conn().unwrap();
+        adjustment::record_events(&conn, "001309", &[ex_event()], &raw_history()).unwrap();
+    }
 
-    let fetch = FakeFetch::new();
-    assert!(adjustment::detect_stale(&db, &fetch, 2).unwrap().is_empty());
-}
-
-#[test]
-fn stale_check_falls_back_to_tail_comparison() {
-    let dir = tempfile::tempdir().unwrap();
-    let state = AppState::from_data_dir(dir.path().to_path_buf()).expect("装配应用状态");
-    let db = state.db().clone();
-    seed_stock(&db);
-    seed_state(&db, "2026-10-12", &tail_json(&bars(RAW)));
-
-    let fetch = FakeFetch {
-        dividends_fail: true,
-        ..FakeFetch::new()
-    };
-    let stale = adjustment::detect_stale(&db, &fetch, 2).unwrap();
-    assert_eq!(stale.len(), 1);
-    assert_eq!(stale[0].ex_date, None);
+    let source = source();
+    assert!(adjustment::detect_stale(&db, &source, 2).unwrap().is_empty());
 }

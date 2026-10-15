@@ -4,6 +4,7 @@
 //! `alerts::refresh_positions`（命令层的抓取走网络，不在集成测试里跑）。
 
 use serde_json::{json, Value};
+use springload_core::market::Market;
 use springload_core::alerts::{self, AlertKind, STOP_LOSS_MESSAGE};
 use springload_core::storage::bar::BarRow;
 use springload_core::storage::position::{self, Position};
@@ -17,6 +18,19 @@ use tauri::ipc::{CallbackFn, InvokeBody};
 use tauri::test::{get_ipc_response, mock_builder, mock_context, noop_assets, MockRuntime, INVOKE_KEY};
 use tauri::webview::InvokeRequest;
 use tauri::{App, WebviewWindow, WebviewWindowBuilder};
+
+/// 买入日的次一交易日。
+const NEXT_TRADING_DAY: &str = "2026-10-14";
+
+/// 可执行日：不早于买入日的次一交易日，也不早于今天。
+fn executable_day() -> String {
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    if today.as_str() > NEXT_TRADING_DAY {
+        today
+    } else {
+        NEXT_TRADING_DAY.to_string()
+    }
+}
 
 struct Harness {
     webview: WebviewWindow<MockRuntime>,
@@ -170,7 +184,7 @@ fn seed(dir: &std::path::Path, entry: f64, stop: f64, entry_date: &str) {
 
 /// 持仓列表里唯一的那个 view。
 fn only(db: &Database, quote: f64) -> alerts::PositionView {
-    alerts::refresh_positions(db, &[("600036".to_string(), quote)])
+    alerts::refresh_positions(db, &[("600036".to_string(), quote)], Market::Cn)
         .expect("刷新成功")
         .into_iter()
         .next()
@@ -212,8 +226,7 @@ fn a_price_at_or_below_the_stop_gives_the_stop_loss_hint() {
         .find(|alert| alert.kind == AlertKind::StopLoss)
         .expect("应给出止损提示");
     assert_eq!(stop.message, STOP_LOSS_MESSAGE);
-    // 买入日的次一交易日是 2026-10-14。
-    assert_eq!(stop.executable_date, "2026-10-14");
+    assert_eq!(stop.executable_date, executable_day());
 }
 
 #[test]
@@ -249,7 +262,7 @@ fn a_price_below_ema9_gives_the_trend_hint() {
         .find(|alert| alert.kind == AlertKind::BelowEma9)
         .expect("应给出跌破 9 日均线的提示");
     assert_eq!(trend.message, "趋势可能走坏，建议评估离场");
-    assert_eq!(trend.executable_date, "2026-10-14");
+    assert_eq!(trend.executable_date, executable_day());
     // 20.10 既没到 3R 也没跌破止损。
     assert_eq!(view.alerts.len(), 1);
 }
@@ -282,7 +295,7 @@ fn the_executable_date_is_never_the_entry_day() {
         .find(|alert| alert.kind == AlertKind::StopLoss)
         .unwrap();
     assert_ne!(stop.executable_date, "2026-10-13", "当天买入当天不能卖");
-    assert_eq!(stop.executable_date, "2026-10-14");
+    assert_eq!(stop.executable_date, executable_day());
 }
 
 #[test]

@@ -66,7 +66,7 @@ export function GlossaryProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  return <GlossaryContext.Provider value={value}>{children}</GlossaryContext.Provider>;
+  return <GlossaryContext value={value}>{children}</GlossaryContext>;
 }
 
 /** 取术语与四步文案。 */

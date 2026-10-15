@@ -2,12 +2,14 @@
 //!
 //! 提示词由两部分组成：交给 Rig extractor 的 [`PREAMBLE`]（系统提示），以及按
 //! 当前 scope 与上下文拼出的用户提示 [`build`]。上下文里只放已经发生的事实，
-//! 提示词要求模型只描述这些事实，不出现判断词、不给买卖结论。
+//! 提示词要求模型只描述这些事实，不出现判断词、不给买卖结论。金额一律带上当前
+//! 市场的货币名，模型不会自己加。
 
 use super::context::{
     ExplainContext, JournalFacts, Step1Facts, Step2Facts, Step3Facts, Step4Facts, ZoneFacts,
 };
 use super::Scope;
+use crate::market::Market;
 
 /// 交给 Rig extractor 的系统提示。
 ///
@@ -25,8 +27,14 @@ pub const PREAMBLE: &str = "\
 把最终结果通过 submit 工具以 JSON 提交。";
 
 /// 按 scope 拼出用户提示。
-pub fn build(scope: Scope, context: &ExplainContext) -> String {
+pub fn build(scope: Scope, context: &ExplainContext, market: Market) -> String {
+    let currency = market.currency();
     let mut lines = Vec::new();
+    lines.push(format!(
+        "市场：{}，金额单位为{}。",
+        market.label(),
+        currency
+    ));
     lines.push(format!(
         "股票：{} {}（数据截止日 {}）。",
         context.code, context.name, context.data_as_of
@@ -38,7 +46,7 @@ pub fn build(scope: Scope, context: &ExplainContext) -> String {
                     .to_string(),
             );
             if let Some(facts) = &context.step1 {
-                lines.extend(step1_facts(facts));
+                lines.extend(step1_facts(facts, currency));
             }
         }
         Scope::Step2 => {
@@ -65,20 +73,20 @@ pub fn build(scope: Scope, context: &ExplainContext) -> String {
                     .to_string(),
             );
             if let Some(facts) = &context.step4 {
-                lines.extend(step4_facts(facts));
+                lines.extend(step4_facts(facts, currency));
             }
         }
         Scope::Journal => {
             lines.push("任务：做一段复盘总结，说明交易记录里的统计与反复出现的形态。".to_string());
             if let Some(facts) = &context.journal {
-                lines.extend(journal_facts(facts));
+                lines.extend(journal_facts(facts, currency));
             }
         }
     }
     lines.join("\n")
 }
 
-fn step1_facts(facts: &Step1Facts) -> Vec<String> {
+fn step1_facts(facts: &Step1Facts, currency: &str) -> Vec<String> {
     let mut lines = vec![
         format!("C1 涨幅条件：{}", verdict(facts.c1)),
         format!("C2 结构条件：{}", verdict(facts.c2)),
@@ -101,7 +109,7 @@ fn step1_facts(facts: &Step1Facts) -> Vec<String> {
         lines.push(format!("近 20 日极差：{}", percent(value)));
     }
     if let Some(value) = facts.avg_amount {
-        lines.push(format!("日均成交额：{}", money(value)));
+        lines.push(format!("日均成交额：{}", money(value, currency)));
     }
     if let Some(value) = facts.close {
         lines.push(format!("最新收盘价：{}", price(value)));
@@ -154,16 +162,16 @@ fn step3_facts(facts: &Step3Facts) -> Vec<String> {
     lines
 }
 
-fn step4_facts(facts: &Step4Facts) -> Vec<String> {
+fn step4_facts(facts: &Step4Facts, currency: &str) -> Vec<String> {
     vec![
         format!("买入价：{}", price(facts.entry)),
         format!("止损价：{}", price(facts.stop)),
         format!("每股风险：{}", price(facts.per_r)),
-        format!("账户金额：{}", money(facts.account)),
+        format!("账户金额：{}", money(facts.account, currency)),
         format!("单笔风险比例：{}", percent(facts.risk_pct)),
-        format!("最大可亏金额：{}", money(facts.account * facts.risk_pct)),
+        format!("最大可亏金额：{}", money(facts.account * facts.risk_pct, currency)),
         format!("股数：{} 股", facts.shares),
-        format!("投入金额：{}", money(facts.capital)),
+        format!("投入金额：{}", money(facts.capital, currency)),
         format!("仓位占比：{}", percent(facts.pos_pct)),
         format!("止损距离：{}", percent(facts.stop_distance)),
         format!("3R 目标位：{}", price(facts.t3)),
@@ -174,7 +182,7 @@ fn step4_facts(facts: &Step4Facts) -> Vec<String> {
     ]
 }
 
-fn journal_facts(facts: &JournalFacts) -> Vec<String> {
+fn journal_facts(facts: &JournalFacts, currency: &str) -> Vec<String> {
     let mut lines = vec![format!("已出场 {} 笔，其中盈利 {} 笔。", facts.trades, facts.wins)];
     if let Some(value) = facts.win_rate {
         lines.push(format!("胜率：{}", percent(value)));
@@ -183,19 +191,20 @@ fn journal_facts(facts: &JournalFacts) -> Vec<String> {
         lines.push(format!("平均 R 倍数：{}", number(value)));
     }
     if let Some(value) = facts.total_pnl {
-        lines.push(format!("总盈亏：{} 元", number(value)));
+        lines.push(format!("总盈亏：{} {}", number(value), currency));
     }
     lines.push("统计口径：未计入交易成本与滑点。".to_string());
     for trade in &facts.recent {
         let name = trade.name.clone().unwrap_or_else(|| trade.code.clone());
         let mut line = format!(
-            "交易：{} {} 入场 {} 元 {}，出场 {}",
+            "交易：{} {} 入场 {} {} {}，出场 {}",
             trade.code,
             name,
             price(trade.entry_price),
+            currency,
             trade.entry_date,
             match (trade.exit_price, &trade.exit_date) {
-                (Some(exit), Some(date)) => format!("{} 元 {}", price(exit), date),
+                (Some(exit), Some(date)) => format!("{} {} {}", price(exit), currency, date),
                 _ => "尚未填写".to_string(),
             }
         );
@@ -203,7 +212,7 @@ fn journal_facts(facts: &JournalFacts) -> Vec<String> {
             line.push_str(&format!("，R 倍数 {}", number(r)));
         }
         if let Some(pnl) = trade.pnl {
-            line.push_str(&format!("，盈亏 {} 元", number(pnl)));
+            line.push_str(&format!("，盈亏 {} {}", number(pnl), currency));
         }
         if let Some(note) = &trade.note {
             line.push_str(&format!("，备注 {}", note));
@@ -258,8 +267,8 @@ fn percent(value: f64) -> String {
     format!("{:.1}%", value * 100.0)
 }
 
-fn money(value: f64) -> String {
-    format!("{value:.0} 元")
+fn money(value: f64, currency: &str) -> String {
+    format!("{value:.0} {currency}")
 }
 
 fn number(value: f64) -> String {

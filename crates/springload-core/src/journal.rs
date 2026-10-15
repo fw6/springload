@@ -1,10 +1,11 @@
 //! 交易日志：记录表、统计摘要、手动补录、费用模型与 CSV 导出。
 //!
 //! 统计只计已出场的交易。费用模型默认关闭；开启后逐笔扣减，扣减额写进记录的
-//! `fees` 列，`pnl` 也按扣减后的金额算。
+//! `fees` 列，`pnl` 也按扣减后的金额算。费用口径随市场变，见 [`crate::fees`]。
 
 use crate::error::{CoreError, Result};
 use crate::fees;
+use crate::market::Market;
 use crate::storage::stock;
 use crate::storage::trade_log::{self, TradeLogEntry};
 use crate::storage::{now, Database};
@@ -26,9 +27,9 @@ pub struct JournalStats {
     pub win_rate: f64,
     /// 平均 R 倍数。
     pub avg_r: f64,
-    /// 总盈亏（元）。
+    /// 总盈亏（本市场货币）。
     pub total_pnl: f64,
-    /// 逐笔扣减的费用合计（元）。
+    /// 逐笔扣减的费用合计（本市场货币）。
     pub total_fees: f64,
     /// 统计口径的固定标注。
     pub note: String,
@@ -153,7 +154,7 @@ pub fn stats(entries: &[TradeLogEntry]) -> JournalStats {
 ///
 /// 费用模型关闭时不改任何数字；开启时按当前费率逐笔重算 `fees` 与扣减后的 `pnl`，
 /// 重算结果写回库里，这样导出与统计用的是同一份数字。
-pub fn view(db: &Database, fee_model_enabled: bool, commission_rate: f64) -> Result<JournalView> {
+pub fn view(db: &Database, market: Market, fee_model_enabled: bool, commission_rate: f64) -> Result<JournalView> {
     let conn = db.conn()?;
     let mut entries = trade_log::list(&conn)?;
     if fee_model_enabled {
@@ -162,7 +163,8 @@ pub fn view(db: &Database, fee_model_enabled: bool, commission_rate: f64) -> Res
                 continue;
             }
             let exit = entry.exit_price.unwrap_or(entry.entry_price);
-            let charged = fees::round_trip(entry.entry_price, exit, entry.quantity, commission_rate);
+            let charged =
+                fees::round_trip(entry.entry_price, exit, entry.quantity, commission_rate, market);
             let gross = (exit - entry.entry_price) * entry.quantity as f64;
             entry.fees = charged.total;
             entry.pnl = Some(gross - charged.total);

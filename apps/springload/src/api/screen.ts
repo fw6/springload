@@ -14,7 +14,7 @@ export interface ScreenRow {
   chg6m: number | null;
   /** 近 1 个月涨幅的全市场排名分位。 */
   rankPct: number | null;
-  /** 近 20 日日均成交额（元）。 */
+  /** 近 20 日日均成交额，单位是当前市场的货币。 */
   avgAmount: number | null;
   /** 近 20 日极差。 */
   convergence: number | null;

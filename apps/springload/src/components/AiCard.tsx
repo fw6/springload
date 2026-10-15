@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { explain, explainInvalidate, explainRetry } from "../api/ai";
 import type { StepIndex } from "../api/types";
+import { Button } from "./ui/button";
+import { Typesetting } from "./ui/typesetting";
 
 /** 免责声明：卡片固定带着，不随模型输出变化。 */
 const DISCLAIMER = "以上只是对图上形态与数据的描述，不构成买卖建议。";
@@ -20,8 +22,8 @@ type CardState =
   | { kind: "error" };
 
 /**
- * AI 解释卡片：自己调命令、管加载与失败状态，失败时显示「解释生成失败」与重试按钮，
- * 不沿用上一次的解释。固定带「AI 生成」标签与免责声明。
+ * AI 解释：版面上的一则边栏，用虚线的框圈起来，与正文分开。
+ * 自己调命令、管加载与失败状态，失败时显示「解释生成失败」与重试按钮，不沿用上一次的解释。
  */
 export function AiCard({ code, scope, invalidateToken }: AiCardProps) {
   const [state, setState] = useState<CardState>({ kind: "loading" });
@@ -67,19 +69,26 @@ export function AiCard({ code, scope, invalidateToken }: AiCardProps) {
   if (code === null) return null;
 
   return (
-    <div className="ai-card">
-      <span className="ai-tag">AI 生成</span>
-      {state.kind === "loading" ? <div>解释生成中…</div> : null}
-      {state.kind === "ready" ? <div>{state.text}</div> : null}
+    <section
+      data-slot="ai-card"
+      aria-label="AI 解释"
+      className="flex flex-col gap-2 border border-dashed border-ink bg-slip px-3 py-2.5 text-body leading-relaxed text-ink"
+    >
+      <span className="flex items-center gap-2 text-micro tracking-[0.08em] text-ink-soft">
+        <span>AI 解释</span>
+        <span className="border border-rule px-1">AI 生成</span>
+      </span>
+      {state.kind === "loading" ? <Typesetting>解释生成中…</Typesetting> : null}
+      {state.kind === "ready" ? <p>{state.text}</p> : null}
       {state.kind === "error" ? (
-        <div className="hint">
+        <div className="flex items-center gap-3 text-ink-soft">
           解释生成失败
-          <button type="button" className="ghost" onClick={() => void load(code, true)}>
+          <Button size="sm" variant="secondary" onClick={() => void load(code, true)}>
             重试
-          </button>
+          </Button>
         </div>
       ) : null}
-      <span className="disclaimer">{DISCLAIMER}</span>
-    </div>
+      <p className="text-micro text-ink-soft">{DISCLAIMER}</p>
+    </section>
   );
 }

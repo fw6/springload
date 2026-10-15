@@ -5,6 +5,7 @@
 
 use crate::error::Result;
 use crate::glossary;
+use crate::market::Market;
 use crate::storage::{signal, support_zone, watchlist};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -19,8 +20,9 @@ pub struct StepUnlock {
 
 /// 判定某只股票当前已解锁的步骤。
 ///
-/// `code` 为空时按「没有选中股票」处理：第 3、4 步都不可进。
-pub fn step_unlock(conn: &Connection, code: &str) -> Result<StepUnlock> {
+/// `code` 为空时按「没有选中股票」处理：第 3、4 步都不可进。阻止提示取自当前市场
+/// 的四步文案。
+pub fn step_unlock(conn: &Connection, code: &str, market: Market) -> Result<StepUnlock> {
     let watchlist_non_empty = !watchlist::list(conn)?.is_empty();
     let has_high_zone = support_zone::list_for_code(conn, code)?
         .iter()
@@ -36,7 +38,7 @@ pub fn step_unlock(conn: &Connection, code: &str) -> Result<StepUnlock> {
         watchlist_non_empty && has_high_zone && has_signal,
     ];
 
-    let steps = glossary::steps();
+    let steps = glossary::steps(market);
     let mut reasons: [String; 4] = Default::default();
     for index in 1..4 {
         if !unlocked[index] {
@@ -136,7 +138,7 @@ mod tests {
     #[test]
     fn first_step_is_always_unlocked() {
         let conn = conn();
-        let unlock = step_unlock(&conn, "600000").unwrap();
+        let unlock = step_unlock(&conn, "600000", Market::Cn).unwrap();
         assert!(unlock.unlocked[0]);
         assert_eq!(unlock.reasons[0], "");
     }
@@ -144,12 +146,12 @@ mod tests {
     #[test]
     fn second_step_needs_a_non_empty_watchlist() {
         let conn = conn();
-        let empty = step_unlock(&conn, "600000").unwrap();
+        let empty = step_unlock(&conn, "600000", Market::Cn).unwrap();
         assert!(!empty.unlocked[1]);
         assert!(empty.reasons[1].contains("第 1 步"));
 
         add_to_watchlist(&conn, "600000");
-        let filled = step_unlock(&conn, "600000").unwrap();
+        let filled = step_unlock(&conn, "600000", Market::Cn).unwrap();
         assert!(filled.unlocked[1]);
         assert_eq!(filled.reasons[1], "");
     }
@@ -160,16 +162,16 @@ mod tests {
         add_to_watchlist(&conn, "600000");
         add_zone(&conn, "600000", "中");
 
-        let medium = step_unlock(&conn, "600000").unwrap();
+        let medium = step_unlock(&conn, "600000", Market::Cn).unwrap();
         assert!(!medium.unlocked[2], "中置信支撑区不解锁第 3 步");
         assert!(medium.reasons[2].contains("高置信"));
 
         // 别的股票有高置信区，不影响这只。
         add_zone(&conn, "600001", "高");
-        assert!(!step_unlock(&conn, "600000").unwrap().unlocked[2]);
+        assert!(!step_unlock(&conn, "600000", Market::Cn).unwrap().unlocked[2]);
 
         add_zone(&conn, "600000", "高");
-        assert!(step_unlock(&conn, "600000").unwrap().unlocked[2]);
+        assert!(step_unlock(&conn, "600000", Market::Cn).unwrap().unlocked[2]);
     }
 
     #[test]
@@ -179,11 +181,11 @@ mod tests {
         add_zone(&conn, "600000", "高");
         add_signal(&conn, "600000", "waiting");
 
-        let waiting = step_unlock(&conn, "600000").unwrap();
+        let waiting = step_unlock(&conn, "600000", Market::Cn).unwrap();
         assert!(!waiting.unlocked[3], "等待中的信号不解锁第 4 步");
 
         add_signal(&conn, "600000", "triggered");
-        let triggered = step_unlock(&conn, "600000").unwrap();
+        let triggered = step_unlock(&conn, "600000", Market::Cn).unwrap();
         assert!(triggered.unlocked[3]);
         assert_eq!(triggered.reasons[3], "");
     }
@@ -195,7 +197,7 @@ mod tests {
         add_zone(&conn, "600000", "高");
         add_signal(&conn, "600000", "triggered");
 
-        let unlock = step_unlock(&conn, "").unwrap();
+        let unlock = step_unlock(&conn, "", Market::Cn).unwrap();
         assert!(unlock.unlocked[1], "观察名单非空时第 2 步可进");
         assert!(!unlock.unlocked[2], "没有选中股票时第 3 步不可进");
         assert!(!unlock.unlocked[3], "没有选中股票时第 4 步不可进");

@@ -1,10 +1,51 @@
-//! `market` 模块：三家适配器的解析与批量切分。
+//! `market` 模块：板块与市场归属、通达信协议常量、腾讯与新浪快照的解析与批量切分，
+//! 以及美股 Yahoo 适配器的日线与分钟线解析。
 //!
-//! 样本取自 `crates/springload-core/tests/fixtures/`，来源 URL 见每个测试的注释；
+//! 快照样本取自 `crates/springload-core/tests/fixtures/`，来源 URL 见每个测试的注释；
 //! 全部为 2026-10-13 实际请求的响应。
 
 use springload_core::market::url_budget::Budget;
-use springload_core::market::{eastmoney, sina, tencent, TradeStatus};
+use springload_core::market::{board_of, market_of, sina, tdx, tencent, us, Market, TradeStatus};
+
+/// 代码到板块与市场的归属：只认沪深主板、科创板、创业板与北交所。
+#[test]
+fn code_prefix_decides_board_and_market() {
+    for code in ["600000", "601398", "603000", "605081", "000001", "001979", "002415", "003816"] {
+        assert_eq!(board_of(code), Some("main"), "{code} 应是主板");
+    }
+    assert_eq!(board_of("688981"), Some("star"));
+    assert_eq!(board_of("300750"), Some("chinext"));
+    assert_eq!(board_of("301660"), Some("chinext"));
+    assert_eq!(board_of("920821"), Some("bse"));
+    assert_eq!(board_of("900948"), None, "上海 B 股不在范围里");
+    assert_eq!(board_of("200530"), None, "深圳 B 股不在范围里");
+
+    assert_eq!(market_of("600000"), "SH");
+    assert_eq!(market_of("688981"), "SH");
+    assert_eq!(market_of("000001"), "SZ");
+    assert_eq!(market_of("300750"), "SZ");
+    assert_eq!(market_of("920821"), "BJ");
+}
+
+/// 通达信协议的市场号：0 深圳、1 上海、2 北京。
+#[test]
+fn tdx_market_numbers_follow_the_protocol() {
+    assert_eq!(tdx::market_of("600519"), 1);
+    assert_eq!(tdx::market_of("000001"), 0);
+    assert_eq!(tdx::market_of("300750"), 0);
+    assert_eq!(tdx::market_of("920001"), 2);
+}
+
+/// 分钟周期到协议 K 线种类的映射。
+#[test]
+fn tdx_minute_periods_map_to_categories() {
+    assert_eq!(tdx::category_of(1), Some(7));
+    assert_eq!(tdx::category_of(5), Some(0));
+    assert_eq!(tdx::category_of(15), Some(1));
+    assert_eq!(tdx::category_of(30), Some(2));
+    assert_eq!(tdx::category_of(60), Some(3));
+    assert_eq!(tdx::category_of(2), None, "两分钟不是协议支持的周期");
+}
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -17,127 +58,12 @@ fn fixture_text(name: &str) -> String {
     String::from_utf8(fixture(name)).unwrap_or_else(|error| panic!("样本 {name} 不是 UTF-8: {error}"))
 }
 
-#[test]
-fn eastmoney_parses_qfq_daily_klines() {
-    // https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600000&ut=fa5fd1943c7b386f172d6893dbfba10b&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&beg=20240101&end=20240110
-    let page = eastmoney::parse_kline(&fixture_text("eastmoney_kline_600000.json")).expect("解析日线");
-    assert_eq!(page.code, "600000");
-    assert_eq!(page.name, "浦发银行");
-    assert_eq!(page.dktotal, 6404);
-    assert!(!page.bars.is_empty());
-
-    let first = &page.bars[0];
-    assert_eq!(first.code, "600000");
-    assert_eq!(first.date, "2024-01-02");
-    assert_eq!(first.open, 5.48);
-    assert_eq!(first.close, 5.45);
-    assert_eq!(first.high, 5.50);
-    assert_eq!(first.low, 5.45);
-    // f56 是手，换算成股。
-    assert_eq!(first.volume, 220667.0 * 100.0);
-    assert_eq!(first.amount, 146066304.00);
-    assert!(first.traded());
-}
-
-#[test]
-fn eastmoney_kline_reports_bad_parameter_as_error() {
-    // 同一接口，secid 的 market 写错时 rc=100。
-    let error = eastmoney::parse_kline(&fixture_text("eastmoney_kline_rc100.json"))
-        .expect_err("rc 非 0 应返回错误");
-    assert!(error.to_string().contains("rc=100"), "{error}");
-}
-
-#[test]
-fn eastmoney_kline_of_unlisted_stock_is_empty() {
-    // https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=0.001381&...&klt=101&fqt=1&end=20500101&lmt=3
-    let page = eastmoney::parse_kline(&fixture_text("eastmoney_kline_empty.json")).expect("解析日线");
-    assert_eq!(page.code, "001381");
-    assert_eq!(page.dktotal, 0);
-    assert!(page.bars.is_empty());
-}
-
-#[test]
-fn eastmoney_kline_skips_suspended_days() {
-    // https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600095&...&klt=101&fqt=0&beg=20250314&end=20250401
-    // 600095 在 2025-03-17 至 2025-03-28 停牌，样本里只有 03-14、03-31、04-01 三根。
-    let page = eastmoney::parse_kline(&fixture_text("eastmoney_kline_suspension_600095.json"))
-        .expect("解析日线");
-    let dates: Vec<&str> = page.bars.iter().map(|bar| bar.date.as_str()).collect();
-    assert_eq!(dates, vec!["2025-03-14", "2025-03-31", "2025-04-01"]);
-    // 复牌首日正常成交。
-    assert_eq!(page.bars[1].date, "2025-03-31");
-    assert!(page.bars[1].traded());
-}
-
-#[test]
-fn eastmoney_parses_latest_bar_from_lmt_request() {
-    // https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600000&...&klt=101&fqt=1&end=20500101&lmt=1
-    let page = eastmoney::parse_kline(&fixture_text("eastmoney_kline_600000_latest.json"))
-        .expect("解析日线");
-    assert_eq!(page.bars.len(), 1);
-    let bar = &page.bars[0];
-    assert_eq!(bar.date, "2026-10-13");
-    assert_eq!(bar.open, 9.67);
-    assert_eq!(bar.close, 9.59);
-    assert_eq!(bar.high, 9.70);
-    assert_eq!(bar.low, 9.57);
-    assert_eq!(bar.volume, 680290.0 * 100.0);
-    assert_eq!(bar.amount, 654402287.00);
-}
-
-#[test]
-fn eastmoney_kline_url_carries_frozen_parameters() {
-    let url = eastmoney::kline_url("1.600000", 101, 1, Some("20230101"), Some("20500101"), None);
-    assert!(url.contains("secid=1.600000"));
-    assert!(url.contains("klt=101"));
-    assert!(url.contains("fqt=1"));
-    assert!(url.contains("beg=20230101"));
-    assert!(url.contains("end=20500101"));
-    assert!(!url.contains("lmt="));
-
-    // secid 的市场前缀：上海 1、深圳 0。
-    assert_eq!(eastmoney::secid("600000"), "1.600000");
-    assert_eq!(eastmoney::secid("000001"), "0.000001");
-}
-
-#[test]
-fn eastmoney_parses_clist_page_and_listing_date() {
-    // https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=100&po=1&np=1&fltt=2&invt=2&fid=f12&fs=m:0+t:6,m:1+t:2&fields=f12,f13,f14,f26,f2,f18
-    let page = eastmoney::parse_clist(&fixture_text("eastmoney_clist_page1.json")).expect("解析列表");
-    assert_eq!(page.total, 3488);
-    assert_eq!(page.rows.len(), 100);
-
-    let row = page
-        .rows
-        .iter()
-        .find(|row| row.code == "605599")
-        .expect("样本里有 605599");
-    assert_eq!(row.name, "菜百股份");
-    assert_eq!(row.market, 1);
-    assert_eq!(row.listed_at.as_deref(), Some("2021-09-09"));
-    assert_eq!(row.last, Some(13.95));
-
-    // 第 35 页是最后一页，返回 88 条。
-    let last = eastmoney::parse_clist(&fixture_text("eastmoney_clist_page35.json")).expect("解析列表");
-    assert_eq!(last.total, 3488);
-    assert_eq!(last.rows.len(), 88);
-}
-
-#[test]
-fn eastmoney_clist_reads_dash_as_missing_number() {
-    // 第 35 页有停牌与未上市的行，f2 是字符串 `-`。
-    let page = eastmoney::parse_clist(&fixture_text("eastmoney_clist_page35.json")).expect("解析列表");
-    assert!(
-        page.rows.iter().any(|row| row.last.is_none()),
-        "停牌或未上市的行最新价应为 None"
-    );
-}
 
 #[test]
 fn tencent_parses_snapshot_by_code_field() {
     // https://qt.gtimg.cn/q=sh600000（响应按 GBK 编码）
     let body = decode_gbk(&fixture("tencent_snapshot_600000.gbk"));
-    let snapshots = tencent::parse_snapshots(&body).expect("解析快照");
+    let snapshots = tencent::parse_snapshots(&body, Market::Cn).expect("解析快照");
     assert_eq!(snapshots.len(), 1);
     let snapshot = &snapshots[0];
     assert_eq!(snapshot.code, "600000");
@@ -158,7 +84,7 @@ fn tencent_parses_snapshot_by_code_field() {
 fn tencent_snapshot_status_maps_suspension_delisting_and_unlisted() {
     // https://qt.gtimg.cn/q=sh600000,sh601198,sz002388,sh600001,sz001381
     let body = decode_gbk(&fixture("tencent_snapshot_statuses.gbk"));
-    let snapshots = tencent::parse_snapshots(&body).expect("解析快照");
+    let snapshots = tencent::parse_snapshots(&body, Market::Cn).expect("解析快照");
     let status = |code: &str| {
         snapshots
             .iter()
@@ -177,7 +103,7 @@ fn tencent_snapshot_status_maps_suspension_delisting_and_unlisted() {
 fn tencent_none_match_returns_no_snapshot() {
     // https://qt.gtimg.cn/q=sh999999,sz888888
     let body = decode_gbk(&fixture("tencent_none_match.gbk"));
-    let snapshots = tencent::parse_snapshots(&body).expect("解析快照");
+    let snapshots = tencent::parse_snapshots(&body, Market::Cn).expect("解析快照");
     assert!(snapshots.is_empty());
 }
 
@@ -185,7 +111,7 @@ fn tencent_none_match_returns_no_snapshot() {
 fn tencent_over_limit_body_is_an_error() {
     // https://qt.gtimg.cn/q=<901 只代码>
     let body = decode_gbk(&fixture("tencent_too_many_codes.txt"));
-    let error = tencent::parse_snapshots(&body).expect_err("超过 900 只应报错");
+    let error = tencent::parse_snapshots(&body, Market::Cn).expect_err("超过 900 只应报错");
     assert!(error.to_string().contains("900"), "{error}");
 }
 
@@ -207,7 +133,7 @@ fn tencent_parses_qfq_daily_kline() {
 
 #[test]
 fn tencent_snapshot_url_prefixes_markets() {
-    let url = tencent::snapshot_url(&["600000".into(), "000001".into(), "920821".into()]);
+    let url = tencent::snapshot_url(&["600000".into(), "000001".into(), "920821".into()], Market::Cn);
     assert_eq!(url, "https://qt.gtimg.cn/q=sh600000,sz000001,bj920821");
 }
 
@@ -244,7 +170,7 @@ fn sina_decodes_gb18030_and_parses_snapshot() {
     // https://hq.sinajs.cn/list=sh600519，Referer: https://finance.sina.com.cn
     let body = sina::decode(&fixture("sina_snapshot_600519.gb18030"));
     assert!(body.contains("贵州茅台"), "应正确转码: {body}");
-    let snapshots = sina::parse_snapshots(&body).expect("解析快照");
+    let snapshots = sina::parse_snapshots(&body, Market::Cn).expect("解析快照");
     assert_eq!(snapshots.len(), 1);
     let snapshot = &snapshots[0];
     assert_eq!(snapshot.code, "600519");
@@ -265,14 +191,14 @@ fn sina_skips_empty_placeholder_and_keeps_real_rows() {
     // https://hq.sinajs.cn/list=sh600013,sh600519（600013 不存在，返回空占位）
     let body = sina::decode(&fixture("sina_snapshot_empty_placeholder.gb18030"));
     assert!(body.contains(r#"hq_str_sh600013="";"#), "样本应含空占位: {body}");
-    let snapshots = sina::parse_snapshots(&body).expect("解析快照");
+    let snapshots = sina::parse_snapshots(&body, Market::Cn).expect("解析快照");
     assert_eq!(snapshots.len(), 1);
     assert_eq!(snapshots[0].code, "600519");
 }
 
 #[test]
 fn sina_list_url_prefixes_markets() {
-    let url = sina::list_url(&["600519".into(), "000001".into()]);
+    let url = sina::list_url(&["600519".into(), "000001".into()], Market::Cn);
     assert_eq!(url, "https://hq.sinajs.cn/list=sh600519,sz000001");
 }
 
@@ -307,25 +233,12 @@ fn url_budget_splits_sina_batches_within_limits() {
 }
 
 #[test]
-fn url_budget_splits_eastmoney_batches_within_limits() {
-    let codes: Vec<String> = (0..2000).map(|i| format!("{:06}", 600000 + i)).collect();
-    let batches = eastmoney::BATCH_BUDGET.batches(&codes);
-    assert!(batches.len() > 2);
-    for batch in &batches {
-        assert!(batch.len() <= eastmoney::BATCH_BUDGET.max_codes);
-        assert!(eastmoney::BATCH_BUDGET.url_len(batch) <= eastmoney::BATCH_BUDGET.max_url_len);
-    }
-    let total: usize = batches.iter().map(Vec::len).sum();
-    assert_eq!(total, codes.len());
-}
-
-#[test]
 fn tencent_batch_helpers_stay_within_url_limits() {
     let codes: Vec<String> = (0..2000).map(|i| format!("{:06}", 600000 + i)).collect();
 
     // HTTP/1.1 的默认切分。
     for batch in tencent::snapshot_batches(&codes) {
-        let url = tencent::snapshot_url(&batch);
+        let url = tencent::snapshot_url(&batch, Market::Cn);
         assert!(url.len() <= tencent::HTTP1_URL_LIMIT, "URL 超上限: {} 字符", url.len());
         assert!(batch.len() <= tencent::MAX_CODES);
     }
@@ -334,7 +247,7 @@ fn tencent_batch_helpers_stay_within_url_limits() {
     let http1 = tencent::snapshot_batches(&codes);
     assert!(http2.len() > http1.len());
     for batch in &http2 {
-        assert!(tencent::snapshot_url(batch).len() <= tencent::HTTP2_URL_LIMIT);
+        assert!(tencent::snapshot_url(batch, Market::Cn).len() <= tencent::HTTP2_URL_LIMIT);
     }
 }
 
@@ -343,7 +256,7 @@ fn sina_batch_helper_stays_within_url_limit() {
     let codes: Vec<String> = (0..2000).map(|i| format!("{:06}", 600000 + i)).collect();
     for batch in sina::list_batches(&codes) {
         assert!(batch.len() <= sina::MAX_CODES);
-        assert!(sina::list_url(&batch).len() <= sina::URL_LIMIT);
+        assert!(sina::list_url(&batch, Market::Cn).len() <= sina::URL_LIMIT);
     }
 }
 
@@ -366,4 +279,22 @@ fn url_budget_keeps_single_long_code_in_its_own_batch() {
 fn decode_gbk(bytes: &[u8]) -> String {
     let (text, _, _) = encoding_rs::GBK.decode(bytes);
     text.into_owned()
+}
+
+/// 美股代码调 Yahoo 时把类别股的点换成连字符。
+#[test]
+fn us_symbols_are_translated_for_yahoo() {
+    assert_eq!(us::yahoo_symbol("aapl"), "AAPL");
+    assert_eq!(us::yahoo_symbol("BRK.B"), "BRK-B");
+    assert_eq!(us::yahoo_symbol("BF.B"), "BF-B");
+}
+
+/// 每个分钟周期都要配到一条 Yahoo 的 interval 与 range。
+#[test]
+fn us_minute_windows_cover_every_period() {
+    let periods: Vec<u32> = us::MINUTE_WINDOWS.iter().map(|(period, _, _)| *period).collect();
+    assert_eq!(periods, springload_core::minute::PERIODS.to_vec());
+    for (_, interval, range) in us::MINUTE_WINDOWS {
+        assert!(!interval.is_empty() && !range.is_empty());
+    }
 }

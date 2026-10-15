@@ -10,6 +10,10 @@ crate-type = ["rlib"]
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# 美股的交易时段与分钟线时间戳都按市场当地时间算，夏令时切换要正确。
+chrono-tz = "0.10"
+# Nasdaq Trader 的证券目录是竖线分隔的文本，用 csv 读而不是自己切字符串。
+csv = "1"
 encoding_rs = "0.8"
 r2d2 = "0.8"
 r2d2_sqlite = "0.35"
@@ -22,12 +26,18 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 rig-agent = "0.42"
 rig-core = { version = "0.42", default-features = false, features = ["reqwest", "native-tls"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
+# 行情走通达信协议：`rustdx-complete` 提供协议解析、连接池与故障转移。
+rustdx-complete = "1.11"
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 # Rig 的调用是异步的，命令层是同步的：客户端自带一个多线程运行期来 block_on。
 tokio = { version = "1", features = ["rt-multi-thread", "net", "time"] }
+# 美股行情走 Yahoo 的 chart 接口：`yahoo_finance_api` 提供请求、重试与响应结构。
+# `blocking` 关掉 async 那套，这个 crate 里全是同步调用。它要的 time / serde_with /
+# thiserror 2 / reqwest 0.13 都已在依赖图里，加它不会多拉一整套 HTTP 栈。
+yahoo_finance_api = { version = "5", features = ["blocking"] }
 
 [dev-dependencies]
 tempfile = "3"

@@ -114,7 +114,7 @@ fn enable_fees(dir: &std::path::Path) {
     let path = dir.join("springload.config.json");
     let mut settings = springload_core::config::load_settings(&path).unwrap().settings;
     settings.fee_model_enabled = true;
-    settings.commission_rate = 0.00025;
+    settings.cn.commission_rate = 0.00025;
     springload_core::config::save_settings(&path, &settings).unwrap();
 }
 

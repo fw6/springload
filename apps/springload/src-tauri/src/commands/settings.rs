@@ -32,18 +32,28 @@ pub struct ImportReport {
 }
 
 /// 把 CSV 文件里的日线增量写进 `bar` 表（同 `(code, date)` 覆盖）。
+///
+/// 文件有多大由用户决定，解析与写入都可能跑上几秒，挪到线程池里做。
 #[tauri::command]
-pub fn import_bars_csv(state: State<'_, AppState>, path: String) -> Result<ImportReport, String> {
-    let text =
-        std::fs::read_to_string(&path).map_err(|e| format!("读取文件 {path} 失败：{e}"))?;
-    let parsed = parse_bars_csv(&text)?;
-    let mut conn = state.db().conn().map_err(|e| e.to_string())?;
-    let rows = bar::upsert_many(&mut conn, &parsed.bars).map_err(|e| e.to_string())?;
-    Ok(ImportReport {
-        rows,
-        skipped: parsed.skipped,
-        errors: parsed.errors,
+pub async fn import_bars_csv(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<ImportReport, String> {
+    let db = state.db();
+    tauri::async_runtime::spawn_blocking(move || {
+        let text =
+            std::fs::read_to_string(&path).map_err(|e| format!("读取文件 {path} 失败：{e}"))?;
+        let parsed = parse_bars_csv(&text)?;
+        let mut conn = db.conn().map_err(|e| e.to_string())?;
+        let rows = bar::upsert_many(&mut conn, &parsed.bars).map_err(|e| e.to_string())?;
+        Ok(ImportReport {
+            rows,
+            skipped: parsed.skipped,
+            errors: parsed.errors,
+        })
     })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /// 记下用户已读过首次启动的风险提示，返回改完的配置。

@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { dispose, init, type Chart, type KLineData, type OverlayCreate } from "klinecharts";
 import { toMessage } from "../api/invoke";
 import { barsGet, type Bar } from "../api/market";
 import type { SupportZoneView } from "../api/types";
+import { useMarket } from "../copy/MarketContext";
 import type { Flow } from "../flow/useFlow";
 import { type ZoneKind } from "./overlays";
+import { chartColors } from "./palette";
 import { getZones, loadZones, resaveZones, saveZone, subscribeZones } from "./zoneStore";
 import "./overlays";
 
@@ -47,13 +49,16 @@ function supportsCanvas(): boolean {
  */
 export default function KLineChart({ flow }: { flow: Flow }) {
   const { selected, period, tool, avwapStartDate, signal } = flow;
+  // 图版在切换市场时随路由子树一起重新挂载，这里读到的就是当前市场。
+  const { market } = useMarket();
+  // 涨跌两色按当前市场取：A 股红涨绿跌，美股绿涨红跌。
+  const colors = chartColors(market);
   const holderRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
   /** 正在画的 overlay 的 id，对账时要跳过它。 */
   const pendingRef = useRef<string | null>(null);
   const barsRef = useRef<Bar[]>([]);
   const flowRef = useRef(flow);
-  flowRef.current = flow;
 
   const [bars, setBars] = useState<Bar[]>([]);
   const [barsError, setBarsError] = useState<string | null>(null);
@@ -63,7 +68,12 @@ export default function KLineChart({ flow }: { flow: Flow }) {
   const zoneSnapshot = useSyncExternalStore(subscribeZones, getZones, getZones);
   // 只画当前这只股票的标注；切换股票的瞬间不会串到上一只的标注。
   const zones = zoneSnapshot.code === selected ? zoneSnapshot.zones : NO_ZONES;
-  barsRef.current = bars;
+
+  // 最新一次的 flow 与 bars 供事件回调读取，写入放在 effect 里，渲染期间不改 ref。
+  useLayoutEffect(() => {
+    flowRef.current = flow;
+    barsRef.current = bars;
+  }, [flow, bars]);
 
   // 日线走 `day`，分钟线走 1 分钟周期。
   useEffect(() => {
@@ -128,16 +138,49 @@ export default function KLineChart({ flow }: { flow: Flow }) {
     }
     chartRef.current = chart;
     chart.setStyles({
-      grid: { horizontal: { color: "#eef1f4" }, vertical: { color: "#eef1f4" } },
+      grid: {
+        horizontal: { color: colors.grid },
+        vertical: { color: colors.grid },
+      },
       candle: {
         bar: {
-          upColor: "#c0392b",
-          downColor: "#1e8e5a",
-          upBorderColor: "#c0392b",
-          downBorderColor: "#1e8e5a",
+          upColor: colors.up,
+          downColor: colors.down,
+          upBorderColor: colors.up,
+          downBorderColor: colors.down,
+          upWickColor: colors.up,
+          downWickColor: colors.down,
         },
       },
-      indicator: { lines: [{ color: "#2563eb" }, { color: "#b45309" }, { color: "#7c3aed" }] },
+      indicator: {
+        lines: [
+          { color: colors.ema },
+          { color: colors.reference },
+          { color: colors.avwap },
+        ],
+        ohlc: { upColor: colors.up, downColor: colors.down },
+      },
+      xAxis: {
+        axisLine: { color: colors.axisLine },
+        tickLine: { color: colors.axisLine },
+        tickText: { color: colors.axisText, family: "SF Mono, Menlo, monospace" },
+      },
+      yAxis: {
+        axisLine: { color: colors.axisLine },
+        tickLine: { color: colors.axisLine },
+        tickText: { color: colors.axisText, family: "SF Mono, Menlo, monospace" },
+      },
+      separator: { color: colors.axisLine },
+      crosshair: {
+        horizontal: {
+          line: { color: colors.axisText },
+          text: { color: colors.axisText, borderColor: colors.axisLine },
+        },
+        vertical: {
+          line: { color: colors.axisText },
+          text: { color: colors.axisText, borderColor: colors.axisLine },
+        },
+      },
     });
     return () => {
       dispose(holder);
@@ -193,7 +236,7 @@ export default function KLineChart({ flow }: { flow: Flow }) {
       name: "verticalStraightLine",
       lock: true,
       points: [{ timestamp: toTimestamp(bar.date), value: bar.close }],
-      styles: { line: { color: "#7c3aed", style: "dashed" } },
+      styles: { line: { color: colors.avwap, style: "dashed" } },
     });
   }, [avwapStartIndex, selected, period, bars]);
 
@@ -237,7 +280,7 @@ export default function KLineChart({ flow }: { flow: Flow }) {
           id: zone.id,
           name: "priceLine",
           points: [{ timestamp: toTimestamp(first.date), value: zone.low }],
-          styles: { line: { color: "#0f766e", style: "dashed" } },
+          styles: { line: { color: colors.level, style: "dashed" } },
           onPressedMoveEnd: (event) => {
             const value = event.overlay.points[0]?.value;
             if (typeof value === "number") {
@@ -345,11 +388,12 @@ export default function KLineChart({ flow }: { flow: Flow }) {
   }, [chartFailed, selected, barsError, bars, loadingBars]);
 
   return (
-    <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex" }}>
-      <div className="kline" ref={holderRef} />
+    <div className="relative flex min-h-0 flex-1">
+      <div className="h-full min-h-0 w-full flex-1" ref={holderRef} />
       {message === null ? null : (
-        <div className="chart-placeholder" style={{ position: "absolute", inset: 0 }}>
-          <p className="hint">{message}</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 border border-dashed border-rule">
+          <p className="font-display text-lede text-ink">{message}</p>
+          <p className="text-micro text-ink-soft">图版留白</p>
         </div>
       )}
     </div>

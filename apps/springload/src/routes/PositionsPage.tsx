@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { Link } from "react-router-dom";
 import { toMessage } from "../api/invoke";
 import { planList, type TradePlan } from "../api/plan";
 import {
@@ -9,8 +9,15 @@ import {
   type Alert,
   type PositionView,
 } from "../api/positions";
+import { DataTable, Td, Th, Tr } from "../components/DataTable";
+import { Panel, SectionHead } from "../components/Panel";
 import { TermHint } from "../components/TermHint";
-import { riskNotes } from "../copy/riskNotes";
+import { Alert as Note, AlertContent, AlertDescription, AlertIcon } from "../components/ui/alert";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Stamp, type StampStatus } from "../components/ui/stamp";
+import { useCurrency, useMarket } from "../copy/MarketContext";
+import { riskNotes, sellTiming } from "../copy/riskNotes";
 
 /** 刷新间隔：每分钟一次。 */
 export const REFRESH_INTERVAL_MS = 60_000;
@@ -20,14 +27,14 @@ function price(value: number | null): string {
   return value === null ? "—" : value.toFixed(2);
 }
 
-/** 提示的胶囊等级：止损与 5R 减仓最显眼。 */
-function levelOf(kind: Alert["kind"]): "高" | "中" | "低" {
-  if (kind === "stopLoss" || kind === "reduce5R") return "高";
-  if (kind === "belowEma9" || kind === "reduce3R") return "中";
-  return "低";
+/** 提示的戳记等级：止损与 5R 减仓最显眼。 */
+function levelOf(kind: Alert["kind"]): StampStatus {
+  if (kind === "stopLoss" || kind === "reduce5R") return "danger";
+  if (kind === "belowEma9" || kind === "reduce3R") return "warning";
+  return "neutral";
 }
 
-/** 一行持仓。 */
+/** 一条持仓：标的一行、关键价位一行、提示一行，下面是离场填写。 */
 function PositionRow({
   view,
   onExit,
@@ -39,89 +46,79 @@ function PositionRow({
 }) {
   const [exitPrice, setExitPrice] = useState<string>(view.last === null ? "" : String(view.last));
   const [exitDate, setExitDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const currency = useCurrency();
+  const { market } = useMarket();
 
   return (
-    <div className="result-cell" style={{ display: "block", marginBottom: 12 }}>
-      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-        <div style={{ minWidth: 180 }}>
-          <div style={{ fontWeight: 600 }}>
-            {view.name ?? "—"}{" "}
-            <span className="mono" style={{ color: "#64748b" }}>
-              {view.code}
-            </span>
+    <article className="flex flex-col gap-2.5 border border-rule bg-slip p-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="min-w-[11rem]">
+          <div className="font-display text-lede font-bold text-ink">
+            {view.name ?? "—"} <span className="font-mono text-body text-ink-soft">{view.code}</span>
           </div>
-          <div className="hint">
+          <div className="text-note text-ink-soft">
             入场 {view.entryDate} · {view.quantity} 股
           </div>
         </div>
-        <div className="hint">
+        <p className="font-mono text-note text-ink-soft">
           买入 {price(view.entryPrice)} ｜ 止损 {price(view.stop)} ｜ 最新 {price(view.last)} ｜ 9
           日 EMA {price(view.ema9)} ｜ 3R {price(view.t3)} ｜ 5R {price(view.t5)}
-        </div>
-        <span className="toolbar-spacer" />
-        {view.alerts.length === 0 ? (
-          <span className="pill" data-level="低">
-            持有
-          </span>
-        ) : (
-          view.alerts.map((alert) => (
-            <span key={alert.kind} className="pill" data-level={levelOf(alert.kind)}>
-              {alert.message}
-            </span>
-          ))
-        )}
+        </p>
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          {view.alerts.length === 0 ? (
+            <Stamp status="neutral" size="sm">
+              持有
+            </Stamp>
+          ) : (
+            view.alerts.map((alert) => (
+              <Stamp key={alert.kind} status={levelOf(alert.kind)} size="sm">
+                {alert.message}
+              </Stamp>
+            ))
+          )}
+        </span>
       </div>
 
       {view.alerts.map((alert) => (
-        <div key={alert.kind} className="hint" style={{ marginTop: 4 }}>
+        <p key={alert.kind} className="text-note text-ink-soft">
           {alert.message}：信号日 {alert.signalDate}，可执行日 {alert.executableDate}
-          （T+1，当天买入的次日才能卖）
-        </div>
+          （{sellTiming(market)}）
+        </p>
       ))}
 
-      <div className="field-row" style={{ marginTop: 8 }}>
-        <div className="field">
-          <label htmlFor={`exit-price-${view.id}`}>实际成交价（元/股）</label>
-          <input
-            id={`exit-price-${view.id}`}
-            type="number"
-            step="0.01"
-            value={exitPrice}
-            onChange={(event) => setExitPrice(event.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor={`exit-date-${view.id}`}>出场日</label>
-          <input
-            id={`exit-date-${view.id}`}
-            type="date"
-            value={exitDate}
-            onChange={(event) => setExitDate(event.target.value)}
-          />
-        </div>
-        <div className="field">
-          <button
-            type="button"
-            className="primary"
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <Input
+          label={`实际成交价（${currency}/股）`}
+          type="number"
+          step="0.01"
+          value={exitPrice}
+          onChange={setExitPrice}
+        />
+        <Input label="出场日" type="date" value={exitDate} onChange={setExitDate} />
+        <div className="flex items-end">
+          <Button
+            size="sm"
             disabled={busy || exitPrice.trim() === ""}
             onClick={() => onExit(view.id, Number(exitPrice), exitDate)}
           >
             填入成交价并离场
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
 /** 持仓跟踪：已执行的仓位、最新价、离场提示与填成交价。 */
 export default function PositionsPage() {
+  const currency = useCurrency();
+  const { market } = useMarket();
   const [views, setViews] = useState<PositionView[]>([]);
   const [drafts, setDrafts] = useState<TradePlan[]>([]);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, startBusy] = useTransition();
 
   const load = useCallback(async () => {
     try {
@@ -159,107 +156,123 @@ export default function PositionsPage() {
   }, [refresh]);
 
   const exit = useCallback(
-    async (id: string, exitPrice: number, exitDate: string) => {
-      setBusy(true);
-      try {
-        const entry = await positionExit(id, exitPrice, exitDate);
-        setStatus(
-          `已离场：出场价 ${price(entry.exitPrice)}，R 倍数 ${
-            entry.rMultiple === null ? "—" : entry.rMultiple.toFixed(2)
-          }，盈亏 ${entry.pnl === null ? "—" : entry.pnl.toFixed(2)} 元。`,
-        );
-        setError(null);
-        await load();
-      } catch (cause: unknown) {
-        setError(toMessage(cause));
-      } finally {
-        setBusy(false);
-      }
+    (id: string, exitPrice: number, exitDate: string) => {
+      startBusy(async () => {
+        try {
+          const entry = await positionExit(id, exitPrice, exitDate);
+          setStatus(
+            `已离场：出场价 ${price(entry.exitPrice)}，R 倍数 ${
+              entry.rMultiple === null ? "—" : entry.rMultiple.toFixed(2)
+            }，盈亏 ${entry.pnl === null ? "—" : entry.pnl.toFixed(2)} ${currency}。`,
+          );
+          setError(null);
+          await load();
+        } catch (cause: unknown) {
+          setError(toMessage(cause));
+        }
+      });
     },
     [load],
   );
 
   return (
-    <div className="page">
-      <div className="chart-card">
-        <div className="panel-head">
-          <h2>持仓跟踪</h2>
-          <span className="toolbar-spacer" />
-          <span className="hint">
-            每 60 秒刷新一次{refreshedAt === null ? "" : ` · 最近刷新 ${refreshedAt}`}
-          </span>
-          <button type="button" className="ghost" onClick={() => void refresh()} disabled={busy}>
-            立即刷新
-          </button>
-        </div>
-        <div className="panel-body">
-          {error !== null ? (
-            <div className="notice" data-tone="risk">
-              {error}
-            </div>
-          ) : null}
-          {status !== null ? (
-            <div className="notice" data-tone="info">
-              {status}
-            </div>
-          ) : null}
+    <div className="h-full overflow-auto p-4">
+      <Panel
+        title="持仓跟踪"
+        action={
+          <>
+            <span className="text-note text-ink-soft">
+              每 60 秒刷新一次{refreshedAt === null ? "" : ` · 最近刷新 ${refreshedAt}`}
+            </span>
+            <Button size="sm" variant="secondary" onClick={() => refresh()} disabled={busy}>
+              立即刷新
+            </Button>
+          </>
+        }
+      >
+        {error !== null ? (
+          <Note variant="destructive">
+            <AlertIcon />
+            <AlertContent>
+              <AlertDescription>{error}</AlertDescription>
+            </AlertContent>
+          </Note>
+        ) : null}
+        {status !== null ? (
+          <Note variant="info">
+            <AlertContent>
+              <AlertDescription>{status}</AlertDescription>
+            </AlertContent>
+          </Note>
+        ) : null}
 
-          {views.length === 0 ? (
-            <div className="notice" data-tone="info">
-              还没有持仓。在计划卡上确认「已执行」之后，这里会出现这条仓位。
-            </div>
-          ) : (
-            views.map((view) => (
-              <PositionRow key={view.id} view={view} onExit={exit} busy={busy} />
-            ))
-          )}
+        {views.length === 0 ? (
+          <Note variant="info">
+            <AlertContent>
+              <AlertDescription>
+                还没有持仓。在计划卡上确认「已执行」之后，这里会出现这条仓位。
+              </AlertDescription>
+            </AlertContent>
+          </Note>
+        ) : (
+          views.map((view) => (
+            <PositionRow key={view.id} view={view} onExit={exit} busy={busy} />
+          ))
+        )}
 
-          <div className="notice" data-tone="info">
-            {riskNotes.tPlus1}
-          </div>
+        <Note variant="info">
+          <AlertIcon />
+          <AlertContent>
+            <AlertDescription>
+              {market === "us" ? riskNotes.usSession : riskNotes.tPlusOne}
+            </AlertDescription>
+          </AlertContent>
+        </Note>
 
-          <div className="block-title">计划草稿（存为草稿之后在这里加载）</div>
-          {drafts.length === 0 ? (
-            <div className="hint">还没有草稿。</div>
-          ) : (
-            <table className="grid">
-              <thead>
-                <tr>
-                  <th className="left">代码</th>
-                  <th>买入价</th>
-                  <th>止损价</th>
-                  <th>股数</th>
-                  <th>3R / 5R</th>
-                  <th className="left">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {drafts.map((plan) => (
-                  <tr key={plan.id}>
-                    <td className="left mono">{plan.code}</td>
-                    <td className="mono">{price(plan.entry)}</td>
-                    <td className="mono">{price(plan.stop)}</td>
-                    <td className="mono">{plan.shares}</td>
-                    <td className="mono">
-                      {price(plan.t3)} / {price(plan.t5)}
-                    </td>
-                    <td className="left">
-                      <NavLink className="ghost" to={`/plan?id=${plan.id}`}>
-                        在计划卡打开
-                      </NavLink>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        <SectionHead>计划草稿（存为草稿之后在这里加载）</SectionHead>
+        {drafts.length === 0 ? (
+          <p className="text-note text-ink-soft">还没有草稿。</p>
+        ) : (
+          <DataTable>
+            <thead>
+              <tr>
+                <Th>代码</Th>
+                <Th align="right">买入价</Th>
+                <Th align="right">止损价</Th>
+                <Th align="right">股数</Th>
+                <Th align="right">3R / 5R</Th>
+                <Th>操作</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {drafts.map((plan) => (
+                <Tr key={plan.id}>
+                  <Td>{plan.code}</Td>
+                  <Td align="right">{price(plan.entry)}</Td>
+                  <Td align="right">{price(plan.stop)}</Td>
+                  <Td align="right">{plan.shares}</Td>
+                  <Td align="right">
+                    {price(plan.t3)} / {price(plan.t5)}
+                  </Td>
+                  <Td>
+                    <Link
+                      to={`/plan?id=${plan.id}`}
+                      className="inline-flex h-7 items-center border border-ink bg-slip px-2.5 text-note font-medium text-ink transition-colors hover:bg-ink hover:text-paper"
+                    >
+                      在计划卡打开
+                    </Link>
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </DataTable>
+        )}
 
-          <p className="hint">
-            <TermHint termKey="ema" />
-            被跌破只说明趋势可能走坏，不是必须卖出的信号。
-          </p>
-        </div>
-      </div>
+        <p className="text-note text-ink-soft">
+          <TermHint termKey="ema" />
+          被跌破只说明趋势可能走坏；要不要离场由自己判断。
+        </p>
+      </Panel>
     </div>
   );
 }

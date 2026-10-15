@@ -44,6 +44,12 @@ export function getZones(): ZoneStoreSnapshot {
   return snapshot;
 }
 
+/** 清空标注。切换市场时调用：另一个市场的标注不该留在这里。 */
+export function resetZones(): void {
+  loading = null;
+  emit({ code: null, zones: [], error: null });
+}
+
 /** 换股票时清空并重新取标注。 */
 export async function loadZones(code: string): Promise<void> {
   if (snapshot.code !== code) emit({ code, zones: [], error: null });

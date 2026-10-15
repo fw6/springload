@@ -1,36 +1,64 @@
 //! 前复权换算、过期判定与重算的集成测试。
 //!
-//! 行情走 `tests/fixtures/` 下录制好的 001309 德明利响应样本（2026-10-13 除权除息，
-//! 方案 `10转4股派15.00元`），存储用临时 SQLite 文件。
+//! 场景取 001309 德明利 2026-10-13 的除权除息，方案 `10转4股派15.00元`：每股现金
+//! 红利 1.5 元、每股送转 0.4 股，除权日前收盘 321.43，除权日收盘 233.78。存储用
+//! 临时 SQLite 文件，行情用样本数据源回放。
 
+use chrono::NaiveDate;
 use springload_core::adjustment::{
-    self, adjust_bar, parse_dividends, parse_tail_qfq, reference_price, stale_by_event,
-    tail_overlap_changed, AdjustmentFetch, DividendRecord, HttpAdjustmentFetch,
+    self, adjust_bar, adjust_bars, record_events, reference_price, stale_by_events,
 };
-use springload_core::error::{CoreError, Result};
-use springload_core::market::{eastmoney, Bar};
+use springload_core::error::Result;
+use springload_core::market::{Bar, MinuteBar, QuoteSource};
 use springload_core::storage::bar::BarRow;
 use springload_core::storage::bar_sync_state::BarSyncState;
 use springload_core::storage::corporate_action::{self, CorporateAction};
 use springload_core::storage::stock::Stock;
 use springload_core::storage::{bar, bar_sync_state, stock, Database};
-use chrono::NaiveDate;
 
-const RAW: &str = "eastmoney_kline_001309_raw.json";
-const QFQ: &str = "eastmoney_kline_001309_qfq.json";
-const TAIL: &str = "eastmoney_kline_001309_tail_qfq.json";
-const TAIL_BEFORE_EX: &str = "eastmoney_kline_001309_tail_before_ex.json";
-const BONUS: &str = "eastmoney_sharebonus_001309.json";
+/// 除权日。
+const EX_DATE: &str = "2026-10-13";
+/// 除权日前的最后一根不复权日线。
+const PRE_EX_DATE: &str = "2026-10-12";
+/// 除权日前收盘价（不复权）。
+const PRE_EX_CLOSE: f64 = 321.43;
+/// 除权日收盘价（不复权），除权后价格不再换算。
+const EX_CLOSE: f64 = 233.78;
+/// 每股现金红利。
+const DIVIDEND: f64 = 1.5;
+/// 每股送转比例。
+const SPLIT: f64 = 0.4;
 
-fn fixture(name: &str) -> String {
-    let path = format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));
-    std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("读取样本 {path}: {error}"))
+fn raw_bar(code: &str, date: &str, close: f64) -> Bar {
+    Bar {
+        code: code.to_string(),
+        date: date.to_string(),
+        open: close,
+        high: close,
+        low: close,
+        close,
+        volume: 1_000_000.0,
+        amount: close * 1_000_000.0,
+    }
 }
 
-fn bars(name: &str) -> Vec<Bar> {
-    eastmoney::parse_kline(&fixture(name))
-        .unwrap_or_else(|error| panic!("解析样本 {name}: {error}"))
-        .bars
+/// 复权前的一小段历史：除权日前一根与除权日当天。
+fn raw_history() -> Vec<Bar> {
+    vec![
+        raw_bar("001309", PRE_EX_DATE, PRE_EX_CLOSE),
+        raw_bar("001309", EX_DATE, EX_CLOSE),
+    ]
+}
+
+fn ex_event() -> CorporateAction {
+    CorporateAction {
+        code: "001309".to_string(),
+        ex_date: EX_DATE.to_string(),
+        dividend_per_share: DIVIDEND,
+        split_ratio: SPLIT,
+        pre_close: None,
+        recorded_at: "2026-10-13T00:00:00Z".to_string(),
+    }
 }
 
 fn rows(bars: &[Bar]) -> Vec<BarRow> {
@@ -48,55 +76,27 @@ fn rows(bars: &[Bar]) -> Vec<BarRow> {
         .collect()
 }
 
-/// 从分红送配样本构造事件，与生产路径一致。
-fn events_from_bonus() -> Vec<CorporateAction> {
-    parse_dividends(&fixture(BONUS))
-        .expect("解析分红送配样本")
-        .into_iter()
-        .map(|record| CorporateAction {
-            code: "001309".to_string(),
-            ex_date: record.ex_date,
-            dividend_per_share: record.dividend_per_share,
-            split_ratio: record.split_ratio,
-            pre_close: None,
-            recorded_at: "2026-10-13T00:00:00Z".to_string(),
-        })
-        .collect()
+/// 用样本回放的行情数据源。
+struct FakeSource {
+    raw: Vec<Bar>,
+    events: Vec<CorporateAction>,
 }
 
-/// 用录制样本回放的抓取实现。
-struct FakeFetch {
-    tail: String,
-    raw: String,
-    dividends: String,
-    dividends_fail: bool,
-}
-
-impl FakeFetch {
-    fn new() -> Self {
-        Self {
-            tail: fixture(TAIL),
-            raw: fixture(RAW),
-            dividends: fixture(BONUS),
-            dividends_fail: false,
-        }
-    }
-}
-
-impl AdjustmentFetch for FakeFetch {
-    fn qfq_tail(&self, _code: &str, _lmt: u32) -> Result<String> {
-        Ok(self.tail.clone())
+impl QuoteSource for FakeSource {
+    fn security_list(&self) -> Result<Vec<springload_core::market::Security>> {
+        Ok(Vec::new())
     }
 
-    fn raw_history(&self, _code: &str, _beg: &str) -> Result<String> {
+    fn daily_raw(&self, _code: &str, _beg: &str) -> Result<Vec<Bar>> {
         Ok(self.raw.clone())
     }
 
-    fn dividends(&self, _code: &str) -> Result<String> {
-        if self.dividends_fail {
-            return Err(CoreError::InvalidData("分红送配接口不可用".to_string()));
-        }
-        Ok(self.dividends.clone())
+    fn corporate_actions(&self, _code: &str) -> Result<Vec<CorporateAction>> {
+        Ok(self.events.clone())
+    }
+
+    fn minute_bars(&self, _code: &str, _period: u32) -> Result<Vec<MinuteBar>> {
+        Ok(Vec::new())
     }
 }
 
@@ -122,7 +122,7 @@ fn seed_stock(db: &Database, code: &str, name: &str) {
     .unwrap();
 }
 
-fn seed_state(db: &Database, code: &str, last_bar_date: &str, tail_qfq: &str) {
+fn seed_state(db: &Database, code: &str, last_bar_date: &str) {
     let conn = db.conn().unwrap();
     bar_sync_state::upsert(
         &conn,
@@ -130,40 +130,10 @@ fn seed_state(db: &Database, code: &str, last_bar_date: &str, tail_qfq: &str) {
             code: code.to_string(),
             last_bar_date: Some(last_bar_date.to_string()),
             fetched_at: Some("2026-10-12T08:00:00Z".to_string()),
-            dktotal: Some(1037),
-            tail_qfq: Some(tail_qfq.to_string()),
             updated_at: "2026-10-12T08:00:00Z".to_string(),
         },
     )
     .unwrap();
-}
-
-#[test]
-fn parse_dividends_reads_per_share_amounts() {
-    let records = parse_dividends(&fixture(BONUS)).expect("解析分红送配样本");
-    assert_eq!(records.len(), 5, "样本里有五条已实施记录");
-    assert_eq!(
-        records.last().unwrap(),
-        &DividendRecord {
-            ex_date: "2026-10-13".to_string(),
-            dividend_per_share: 1.5,
-            split_ratio: 0.4,
-        }
-    );
-    assert_eq!(
-        records[3],
-        DividendRecord {
-            ex_date: "2026-04-01".to_string(),
-            dividend_per_share: 0.4,
-            split_ratio: 0.0,
-        }
-    );
-}
-
-#[test]
-fn parse_dividends_treats_null_result_as_empty() {
-    let body = r#"{"version":null,"result":null,"success":false,"message":"返回数据为空","code":9201}"#;
-    assert!(parse_dividends(body).unwrap().is_empty());
 }
 
 #[test]
@@ -174,83 +144,76 @@ fn reference_price_matches_exchange_formula() {
 }
 
 #[test]
-fn adjust_bar_reproduces_server_qfq_series() {
-    let events = events_from_bonus();
-    let raw = bars(RAW);
-    let expected = bars(QFQ);
-    assert_eq!(raw.len(), expected.len());
+fn adjust_bar_rewrites_history_before_the_ex_date_only() {
+    let events = vec![ex_event()];
+    let before = adjust_bar(&rows(&raw_history())[0], &events);
+    // (321.43 - 1.50) / 1.40 = 228.5214…，保留两位小数。
+    assert_eq!(before.close, 228.52);
+    assert_eq!(before.open, 228.52);
 
-    let mut changed = 0;
-    for (raw_bar, expected_bar) in raw.iter().zip(expected.iter()) {
-        assert_eq!(raw_bar.date, expected_bar.date);
-        let adjusted = adjust_bar(&rows(std::slice::from_ref(raw_bar))[0], &events);
-        // 前复权序列保留两位小数，逐条与行情源一致。
-        assert!(
-            (adjusted.open - expected_bar.open).abs() < 0.005,
-            "{} open {} != {}",
-            raw_bar.date,
-            adjusted.open,
-            expected_bar.open
-        );
-        assert!(
-            (adjusted.close - expected_bar.close).abs() < 0.005,
-            "{} close {} != {}",
-            raw_bar.date,
-            adjusted.close,
-            expected_bar.close
-        );
-        if (adjusted.close - raw_bar.close).abs() > 1e-9 {
-            changed += 1;
-        }
-    }
-    // 除权日 2026-10-13 之前的历史全部被改写，除权日当天不变。
-    assert_eq!(changed, raw.len() - 1);
-    let last = adjust_bar(&rows(&raw[raw.len() - 1..])[0], &events);
-    assert_eq!(last.close, raw[raw.len() - 1].close, "除权日当天不换算");
+    let on_ex_date = adjust_bar(&rows(&raw_history())[1], &events);
+    assert_eq!(on_ex_date.close, EX_CLOSE, "除权日当天不换算");
 }
 
 #[test]
-fn stale_by_event_compares_latest_ex_with_local_last_bar() {
-    assert!(stale_by_event(Some("2026-10-13"), Some("2026-10-12")));
-    assert!(!stale_by_event(Some("2026-10-13"), Some("2026-10-13")));
-    assert!(!stale_by_event(Some("2026-04-01"), Some("2026-10-12")));
-    assert!(!stale_by_event(None, Some("2026-10-12")));
-    assert!(!stale_by_event(Some("2026-10-13"), None));
+fn adjust_bars_keeps_volume_and_amount() {
+    let adjusted = adjust_bars(&raw_history(), &[ex_event()]);
+    assert_eq!(adjusted.len(), 2);
+    assert_eq!(adjusted[0].volume, 1_000_000.0);
+    assert_eq!(adjusted[0].amount, PRE_EX_CLOSE * 1_000_000.0);
+    assert_eq!(adjusted[1].close, EX_CLOSE);
 }
 
 #[test]
-fn tail_overlap_changed_detects_rewritten_history() {
-    let server = vec![
-        ("2026-10-12".to_string(), 228.52),
-        ("2026-10-13".to_string(), 233.78),
-    ];
-    let same = server.clone();
-    assert!(!tail_overlap_changed(&server, &same));
+fn stale_by_events_compares_the_event_sets() {
+    let stored = vec![ex_event()];
+    // 库里没有这个事件：新事件会改写它之前的历史。
+    assert!(stale_by_events(&stored, &[]));
+    // 库里已经有同一个事件。
+    assert!(!stale_by_events(&stored, &stored));
 
-    // 本地保存的是除权前的不复权价，同一日期数值不同。
-    let before = vec![
-        ("2026-10-12".to_string(), 321.43),
-        ("2026-10-13".to_string(), 233.78),
-    ];
-    assert!(tail_overlap_changed(&server, &before));
+    // 同一天的分红改了：历史要按新的数重算。
+    let mut changed = ex_event();
+    changed.dividend_per_share = 2.0;
+    assert!(stale_by_events(&[changed], &stored));
 
-    // 没有重叠日期时不判过期。
-    let disjoint = vec![("2026-09-30".to_string(), 254.97)];
-    assert!(!tail_overlap_changed(&server, &disjoint));
-    assert!(!tail_overlap_changed(&server, &[]));
+    // 库里多出来的事件不判过期，否则每次检查都要重算。
+    assert!(!stale_by_events(&[], &stored));
 }
 
 #[test]
-fn parse_tail_qfq_reads_pairs() {
-    let tail = parse_tail_qfq(r#"[["2026-10-12",228.52],["2026-10-13",233.78]]"#);
-    assert_eq!(
-        tail,
-        vec![
-            ("2026-10-12".to_string(), 228.52),
-            ("2026-10-13".to_string(), 233.78),
-        ]
-    );
-    assert!(parse_tail_qfq("[]").is_empty());
+fn record_events_computes_the_ex_reference_price() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open_db(dir.path());
+    let conn = db.conn().unwrap();
+    record_events(&conn, "001309", &[ex_event()], &raw_history()).unwrap();
+
+    let list = corporate_action::list_for_code(&conn, "001309").unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].dividend_per_share, DIVIDEND);
+    assert_eq!(list[0].split_ratio, SPLIT);
+    let pre_close = list[0].pre_close.expect("应记录除权参考价");
+    assert!((pre_close - 228.521428571).abs() < 1e-6, "{pre_close}");
+}
+
+/// 事件早于不复权日线的覆盖范围时，保留表里已有的前收盘价。
+#[test]
+fn record_events_keeps_the_stored_reference_price_for_older_events() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = open_db(dir.path());
+    let conn = db.conn().unwrap();
+    let mut old = ex_event();
+    old.ex_date = "2020-06-01".to_string();
+    record_events(&conn, "001309", std::slice::from_ref(&old), &raw_history()).unwrap();
+
+    let mut refreshed = old.clone();
+    refreshed.pre_close = Some(999.0);
+    corporate_action::upsert(&conn, &refreshed).unwrap();
+    // 再写一次：日线覆盖不到 2020 年，保留表里已有的值。
+    record_events(&conn, "001309", std::slice::from_ref(&old), &raw_history()).unwrap();
+
+    let list = corporate_action::list_for_code(&conn, "001309").unwrap();
+    assert_eq!(list[0].pre_close, Some(999.0));
 }
 
 #[test]
@@ -262,9 +225,9 @@ fn corporate_action_round_trip() {
         &conn,
         &CorporateAction {
             code: "001309".to_string(),
-            ex_date: "2026-10-13".to_string(),
-            dividend_per_share: 1.5,
-            split_ratio: 0.4,
+            ex_date: EX_DATE.to_string(),
+            dividend_per_share: DIVIDEND,
+            split_ratio: SPLIT,
             pre_close: Some(228.52),
             recorded_at: "2026-10-13T00:00:00Z".to_string(),
         },
@@ -272,82 +235,66 @@ fn corporate_action_round_trip() {
     .unwrap();
     let list = corporate_action::list_for_code(&conn, "001309").unwrap();
     assert_eq!(list.len(), 1);
-    assert_eq!(list[0].dividend_per_share, 1.5);
-    assert_eq!(list[0].split_ratio, 0.4);
+    assert_eq!(list[0].dividend_per_share, DIVIDEND);
+    assert_eq!(list[0].split_ratio, SPLIT);
     assert_eq!(list[0].pre_close, Some(228.52));
     assert_eq!(
         corporate_action::latest_ex_date(&conn, "001309").unwrap(),
-        Some("2026-10-13".to_string())
+        Some(EX_DATE.to_string())
     );
     assert_eq!(corporate_action::count(&conn).unwrap(), 1);
 }
 
 #[test]
-fn detect_stale_flags_stock_whose_history_precedes_the_ex_date() {
+fn detect_stale_flags_stock_whose_event_is_missing_from_the_store() {
     let dir = tempfile::tempdir().unwrap();
     let db = open_db(dir.path());
     seed_stock(&db, "001309", "德明利");
-    // 本地最后一条是除权日的前一天，尾部保存的是除权前的不复权价。
-    let raw_tail = tail_json(&bars(RAW));
-    seed_state(&db, "001309", "2026-10-12", &raw_tail);
+    seed_state(&db, "001309", PRE_EX_DATE);
 
-    let fetch = FakeFetch::new();
-    let stale = adjustment::detect_stale(&db, &fetch, 2).expect("检查过期");
+    let source = FakeSource {
+        raw: raw_history(),
+        events: vec![ex_event()],
+    };
+    let stale = adjustment::detect_stale(&db, &source, 2).expect("检查过期");
 
     assert_eq!(stale.len(), 1);
     assert_eq!(stale[0].code, "001309");
     assert_eq!(stale[0].name, "德明利");
-    assert_eq!(stale[0].ex_date.as_deref(), Some("2026-10-13"));
+    assert_eq!(stale[0].ex_date.as_deref(), Some(EX_DATE));
 }
 
 #[test]
-fn detect_stale_ignores_stock_already_synced_past_the_ex_date() {
+fn detect_stale_ignores_stock_whose_events_are_already_recorded() {
     let dir = tempfile::tempdir().unwrap();
     let db = open_db(dir.path());
     seed_stock(&db, "001309", "德明利");
-    // 本地最后一条就是除权日，尾部保存的正是服务端当前的前复权价。
-    let server_tail = tail_json(&bars(TAIL));
-    seed_state(&db, "001309", "2026-10-13", &server_tail);
+    seed_state(&db, "001309", EX_DATE);
+    {
+        let conn = db.conn().unwrap();
+        record_events(&conn, "001309", &[ex_event()], &raw_history()).unwrap();
+    }
 
-    let fetch = FakeFetch::new();
-    let stale = adjustment::detect_stale(&db, &fetch, 2).expect("检查过期");
-    assert!(stale.is_empty(), "已经是除权日之后的序列，不应判过期");
-}
-
-#[test]
-fn detect_stale_falls_back_to_tail_comparison_without_dividends() {
-    let dir = tempfile::tempdir().unwrap();
-    let db = open_db(dir.path());
-    seed_stock(&db, "001309", "德明利");
-    let raw_tail = tail_json(&bars(RAW));
-    seed_state(&db, "001309", "2026-10-12", &raw_tail);
-
-    let fetch = FakeFetch {
-        dividends_fail: true,
-        ..FakeFetch::new()
+    let source = FakeSource {
+        raw: raw_history(),
+        events: vec![ex_event()],
     };
-    let stale = adjustment::detect_stale(&db, &fetch, 2).expect("检查过期");
-
-    assert_eq!(stale.len(), 1);
-    assert_eq!(stale[0].code, "001309");
-    assert_eq!(stale[0].ex_date, None, "退回判据 B 时没有除权日信息");
+    let stale = adjustment::detect_stale(&db, &source, 2).expect("检查过期");
+    assert!(stale.is_empty(), "事件已经记过，不应判过期");
 }
 
+/// 没有回补状态的股票不参与检查。
 #[test]
-fn detect_stale_ignores_future_ex_date_before_it_takes_effect() {
+fn detect_stale_skips_stocks_without_sync_state() {
     let dir = tempfile::tempdir().unwrap();
     let db = open_db(dir.path());
     seed_stock(&db, "001309", "德明利");
-    // 服务端尾部止于除权日前一天，除权日 2026-10-13 还是未来，本地历史仍是当时的前复权价。
-    let server_tail = tail_json(&bars(TAIL_BEFORE_EX));
-    seed_state(&db, "001309", "2026-10-12", &server_tail);
 
-    let fetch = FakeFetch {
-        tail: fixture(TAIL_BEFORE_EX),
-        ..FakeFetch::new()
+    let source = FakeSource {
+        raw: raw_history(),
+        events: vec![ex_event()],
     };
-    let stale = adjustment::detect_stale(&db, &fetch, 2).expect("检查过期");
-    assert!(stale.is_empty(), "除权日尚未到来，历史未被改写");
+    assert!(adjustment::detect_stale(&db, &source, 2).unwrap().is_empty());
 }
 
 #[test]
@@ -355,18 +302,21 @@ fn resync_rewrites_history_and_records_events() {
     let dir = tempfile::tempdir().unwrap();
     let db = open_db(dir.path());
     seed_stock(&db, "001309", "德明利");
-    let raw_bars = bars(RAW);
+    let raw_bars = raw_history();
     {
         // 存的是除权前抓的前复权历史，等于当时的不复权序列。
         let mut conn = db.conn().unwrap();
         bar::upsert_many(&mut conn, &rows(&raw_bars)).unwrap();
     }
-    seed_state(&db, "001309", "2026-10-12", &tail_json(&raw_bars));
+    seed_state(&db, "001309", PRE_EX_DATE);
 
-    let fetch = FakeFetch::new();
+    let source = FakeSource {
+        raw: raw_bars.clone(),
+        events: vec![ex_event()],
+    };
     let report = adjustment::resync(
         &db,
-        &fetch,
+        &source,
         &["001309".to_string()],
         NaiveDate::from_ymd_opt(2026, 10, 13).unwrap(),
     )
@@ -375,41 +325,29 @@ fn resync_rewrites_history_and_records_events() {
     assert!(report.errors.is_empty(), "{:?}", report.errors);
     assert_eq!(report.bars as usize, raw_bars.len());
 
-    // 同一段历史被整体改写：除权日之前对齐行情源的前复权序列，除权日当天不变。
-    let stored = bar::list_for_code(&db.conn().unwrap(), "001309").unwrap();
-    let expected = bars(QFQ);
-    assert_eq!(stored.len(), expected.len());
-    for (row, want) in stored.iter().zip(expected.iter()) {
-        assert_eq!(row.date, want.date);
-        assert!(
-            (row.close - want.close).abs() < 0.005,
-            "{} close {} != {}",
-            row.date,
-            row.close,
-            want.close
-        );
-    }
-    assert_eq!(stored[stored.len() - 1].close, 233.78);
+    // 同一段历史被整体改写：除权日之前换算成前复权，除权日当天不变。
+    let conn = db.conn().unwrap();
+    let stored = bar::list_for_code(&conn, "001309").unwrap();
+    assert_eq!(stored.len(), 2);
+    assert_eq!(stored[0].date, PRE_EX_DATE);
+    assert_eq!(stored[0].close, 228.52);
+    assert_eq!(stored[1].date, EX_DATE);
+    assert_eq!(stored[1].close, EX_CLOSE);
 
     // 除权除息事件写进表，除权日的前收盘价是参考价 (321.43 - 1.50) / 1.40 = 228.52。
-    let conn = db.conn().unwrap();
     let actions = corporate_action::list_for_code(&conn, "001309").unwrap();
     let latest = actions
         .iter()
-        .find(|action| action.ex_date == "2026-10-13")
-        .expect("应记录 2026-10-13 事件");
-    assert_eq!(latest.dividend_per_share, 1.5);
-    assert_eq!(latest.split_ratio, 0.4);
+        .find(|action| action.ex_date == EX_DATE)
+        .expect("应记录除权日事件");
+    assert_eq!(latest.dividend_per_share, DIVIDEND);
+    assert_eq!(latest.split_ratio, SPLIT);
     let pre_close = latest.pre_close.expect("应记录除权参考价");
     assert!((pre_close - 228.521428571).abs() < 1e-6, "{pre_close}");
 
-    // 回补状态被刷新到服务端最新交易日。
+    // 回补状态被刷新到最新交易日。
     let state = bar_sync_state::get(&conn, "001309").unwrap().unwrap();
-    assert_eq!(state.last_bar_date.as_deref(), Some("2026-10-13"));
-    assert_eq!(state.dktotal, Some(1037));
-    let tail = parse_tail_qfq(state.tail_qfq.as_deref().unwrap());
-    assert_eq!(tail.len(), 10);
-    assert_eq!(tail.last().unwrap().1, 233.78);
+    assert_eq!(state.last_bar_date.as_deref(), Some(EX_DATE));
 }
 
 #[test]
@@ -419,62 +357,18 @@ fn resync_after_rewrite_leaves_nothing_stale() {
     seed_stock(&db, "001309", "德明利");
     {
         let mut conn = db.conn().unwrap();
-        bar::upsert_many(&mut conn, &rows(&bars(RAW))).unwrap();
+        bar::upsert_many(&mut conn, &rows(&raw_history())).unwrap();
     }
-    seed_state(&db, "001309", "2026-10-12", &tail_json(&bars(RAW)));
+    seed_state(&db, "001309", PRE_EX_DATE);
 
-    let fetch = FakeFetch::new();
-    assert_eq!(adjustment::detect_stale(&db, &fetch, 2).unwrap().len(), 1);
+    let source = FakeSource {
+        raw: raw_history(),
+        events: vec![ex_event()],
+    };
+    let today = NaiveDate::from_ymd_opt(2026, 10, 13).unwrap();
+    assert_eq!(adjustment::detect_stale(&db, &source, 2).unwrap().len(), 1);
 
-    adjustment::resync(
-        &db,
-        &fetch,
-        &["001309".to_string()],
-        NaiveDate::from_ymd_opt(2026, 10, 13).unwrap(),
-    )
-    .unwrap();
+    adjustment::resync(&db, &source, &["001309".to_string()], today).unwrap();
 
-    // 重算后本地尾部等于服务端尾部，判据 A、B 都不再判过期。
-    assert!(adjustment::detect_stale(&db, &fetch, 2).unwrap().is_empty());
-}
-
-#[test]
-fn dividend_url_encodes_filter_quotes() {
-    let url = adjustment::dividend_url("001309");
-    assert!(url.contains("filter=(SECURITY_CODE%3D%22001309%22)"), "{url}");
-    assert!(url.contains("reportName=RPT_SHAREBONUS_DET"));
-}
-
-/// 联网实测：确认尾部、不复权日线与分红送配三个请求都能通。
-///
-/// 运行：`cargo test -p springload-core --test adjustment_test -- --ignored --test-threads=1`
-#[test]
-#[ignore = "联网实测，需要公网"]
-fn live_tail_raw_and_dividend_endpoints_are_reachable() {
-    let fetch = HttpAdjustmentFetch::new().expect("建抓取客户端");
-
-    let tail = eastmoney::parse_kline(&fetch.qfq_tail("001309", 10).expect("取前复权尾部"))
-        .expect("解析前复权尾部");
-    assert_eq!(tail.code, "001309");
-    assert!(!tail.bars.is_empty());
-
-    let raw = eastmoney::parse_kline(&fetch.raw_history("001309", "20260320").expect("取不复权日线"))
-        .expect("解析不复权日线");
-    assert!(!raw.bars.is_empty());
-
-    let records = parse_dividends(&fetch.dividends("001309").expect("取分红送配")).expect("解析分红送配");
-    assert!(
-        records.iter().any(|record| record.ex_date == "2026-10-13"),
-        "001309 应有 2026-10-13 的除权除息记录"
-    );
-}
-
-/// 与 `bar_sync_state.tail_qfq` 一致的尾部 JSON。
-fn tail_json(bars: &[Bar]) -> String {
-    let start = bars.len().saturating_sub(adjustment::TAIL_LEN as usize);
-    let tail: Vec<serde_json::Value> = bars[start..]
-        .iter()
-        .map(|bar| serde_json::json!([bar.date, bar.close]))
-        .collect();
-    serde_json::Value::Array(tail).to_string()
+    assert!(adjustment::detect_stale(&db, &source, 2).unwrap().is_empty());
 }

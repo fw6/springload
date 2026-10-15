@@ -7,7 +7,15 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) })
 
 import SettingsPage from "./SettingsPage";
 import { BeginnerModeProvider } from "../copy/BeginnerModeContext";
-import { appInfoStub, glossaryStub, mockedInvoke, renderAt, settingsStub, stubInvoke } from "../test-utils";
+import {
+  appInfoStub,
+  glossaryStub,
+  mockedInvoke,
+  renderAt,
+  settingsStub,
+  stubInvoke,
+  usAppInfoStub,
+} from "../test-utils";
 
 const confirmed = { ...settingsStub, firstRunConfirmed: true };
 
@@ -34,7 +42,7 @@ describe("设置页", () => {
   it("显示数据源、同步面板与筛选参数默认值", async () => {
     renderSettings();
 
-    expect(await screen.findByDisplayValue("东方财富 · 前复权")).toBeTruthy();
+    expect(await screen.findByDisplayValue("通达信 · 前复权")).toBeTruthy();
     expect(await screen.findByText(/最近同步：尚未同步/)).toBeTruthy();
 
     expect((screen.getByLabelText("单笔风险比例（%）") as HTMLInputElement).value).toBe("0.5");
@@ -64,8 +72,9 @@ describe("设置页", () => {
   it("关闭小白模式立即写回配置", async () => {
     renderSettings({ settings_update: { ...confirmed, beginnerMode: false } });
 
-    const select = await screen.findByLabelText("小白模式（术语弹窗解释）");
-    fireEvent.change(select, { target: { value: "off" } });
+    const toggle = await screen.findByLabelText("小白模式（术语弹窗解释）");
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(toggle);
 
     await waitFor(() => {
       expect(mockedInvoke).toHaveBeenCalledWith(
@@ -78,16 +87,13 @@ describe("设置页", () => {
   it("费用模型默认关闭，开启并改佣金费率后一起写回", async () => {
     renderSettings();
 
-    expect((await screen.findByLabelText("费用模型（交易日志逐笔扣减）") as HTMLSelectElement).value).toBe(
-      "off",
-    );
+    const feeToggle = await screen.findByLabelText("费用模型（交易日志逐笔扣减）");
+    expect(feeToggle.getAttribute("aria-checked")).toBe("false");
     expect((screen.getByLabelText("佣金费率（%，含单笔最低 5 元）") as HTMLInputElement).value).toBe(
       "0.025",
     );
 
-    fireEvent.change(screen.getByLabelText("费用模型（交易日志逐笔扣减）"), {
-      target: { value: "on" },
-    });
+    fireEvent.click(feeToggle);
     fireEvent.change(screen.getByLabelText("佣金费率（%，含单笔最低 5 元）"), {
       target: { value: "0.03" },
     });
@@ -97,7 +103,10 @@ describe("设置页", () => {
       expect(mockedInvoke).toHaveBeenCalledWith(
         "settings_update",
         expect.objectContaining({
-          patch: expect.objectContaining({ feeModelEnabled: true, commissionRate: 0.0003 }),
+          patch: expect.objectContaining({
+            feeModelEnabled: true,
+            cn: expect.objectContaining({ commissionRate: 0.0003 }),
+          }),
         }),
       );
     });
@@ -153,5 +162,28 @@ describe("设置页", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(dialog.querySelectorAll("li")).toHaveLength(5);
+  });
+});
+
+describe("设置页：美股", () => {
+  it("按美股口径显示成交额单位、佣金与数据源", async () => {
+    stubInvoke({
+      app_info: usAppInfoStub,
+      settings_get: { ...confirmed, market: "us" },
+      sync_status: syncStatusStub,
+    });
+    renderAt(
+      "/settings",
+      <BeginnerModeProvider>
+        <SettingsPage />
+      </BeginnerModeProvider>,
+    );
+
+    // 数据源与成交额单位都换成美股那一套。
+    expect(await screen.findByDisplayValue("Yahoo Finance · 前复权")).toBeTruthy();
+    expect((screen.getByLabelText("流动性阈值（百万美元）") as HTMLInputElement).value).toBe("20");
+    // 美股没有最低佣金，标签不再提 5 元。
+    expect((screen.getByLabelText("佣金费率（%）") as HTMLInputElement).value).toBe("0");
+    expect(screen.getByText(/开启后按佣金逐笔扣减，没有印花税与各项规费/)).toBeTruthy();
   });
 });

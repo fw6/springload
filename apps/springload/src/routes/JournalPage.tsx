@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { toMessage } from "../api/invoke";
 import {
   journalAddManual,
@@ -8,9 +8,17 @@ import {
   type JournalView,
   type ManualEntry,
 } from "../api/journal";
+import { DataTable, Td, Th, Tr } from "../components/DataTable";
+import { Panel, SectionHead, StatGrid, StatTile } from "../components/Panel";
 import { TermHint } from "../components/TermHint";
+import { Alert, AlertContent, AlertDescription, AlertIcon } from "../components/ui/alert";
+import { Button, StatefulButton } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Stamp } from "../components/ui/stamp";
+import { Typesetting } from "../components/ui/typesetting";
 import { useBeginnerMode } from "../copy/BeginnerModeContext";
-import { riskNotes } from "../copy/riskNotes";
+import { useCurrency, useMarket } from "../copy/MarketContext";
+import { feeItems, riskNotes } from "../copy/riskNotes";
 
 /** 统计口径的固定标注，与 Rust 侧一致。 */
 export const STATS_NOTE = "未计入交易成本与滑点";
@@ -39,12 +47,14 @@ const BLANK: ManualEntry = {
 
 /** 交易日志：记录表、统计摘要、手动补录、CSV 导出与 AI 复盘。 */
 export default function JournalPage() {
+  const currency = useCurrency();
+  const { market } = useMarket();
   const [view, setView] = useState<JournalView | null>(null);
   const [form, setForm] = useState<ManualEntry>(BLANK);
   const [filled, setFilled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, startBusy] = useTransition();
   const { beginnerMode } = useBeginnerMode();
 
   const load = useCallback(async () => {
@@ -61,23 +71,22 @@ export default function JournalPage() {
   }, [load]);
 
   const run = useCallback(
-    async (action: () => Promise<string>) => {
-      setBusy(true);
-      try {
-        setStatus(await action());
-        setError(null);
-        await load();
-      } catch (cause: unknown) {
-        setError(toMessage(cause));
-      } finally {
-        setBusy(false);
-      }
+    (action: () => Promise<string>) => {
+      startBusy(async () => {
+        try {
+          setStatus(await action());
+          setError(null);
+          await load();
+        } catch (cause: unknown) {
+          setError(toMessage(cause));
+        }
+      });
     },
     [load],
   );
 
-  const submit = useCallback(async () => {
-    await run(async () => {
+  const submit = useCallback(() => {
+    run(async () => {
       await journalAddManual(form);
       setForm(BLANK);
       setFilled(false);
@@ -85,8 +94,8 @@ export default function JournalPage() {
     });
   }, [form, run]);
 
-  const exportCsv = useCallback(async () => {
-    await run(async () => {
+  const exportCsv = useCallback(() => {
+    run(async () => {
       const path = `springload-journal-${new Date().toISOString().slice(0, 10)}.csv`;
       await journalExportCsv(path);
       return `已导出 CSV：${path}`;
@@ -94,219 +103,192 @@ export default function JournalPage() {
   }, [run]);
 
   const stats = view?.stats ?? null;
+  const feeOn = view?.feeModelEnabled === true;
 
   return (
-    <div className="page">
-      <div className="chart-card">
-        <div className="panel-head">
-          <h2>交易日志</h2>
-          <span className="toolbar-spacer" />
-          <span className="hint">
-            {view?.feeModelEnabled === true
-              ? `费用模型已开启（佣金费率 ${pct(view.commissionRate)}）`
-              : "费用模型关闭"}
-          </span>
-          <button type="button" className="ghost" onClick={() => void exportCsv()} disabled={busy}>
-            导出 CSV
-          </button>
-        </div>
-        <div className="panel-body">
-          {error !== null ? (
-            <div className="notice" data-tone="risk">
-              {error}
-            </div>
-          ) : null}
-          {status !== null ? (
-            <div className="notice" data-tone="info">
-              {status}
-            </div>
-          ) : null}
+    <div className="flex h-full flex-col gap-3.5 overflow-auto p-4">
+      <Panel
+        title="交易日志"
+        action={
+          <>
+            <span className="text-note text-ink-soft">
+              {feeOn
+                ? `费用模型已开启（佣金费率 ${pct(view?.commissionRate ?? 0)}）`
+                : "费用模型关闭"}
+            </span>
+            <Button size="sm" variant="secondary" onClick={() => exportCsv()} disabled={busy}>
+              导出 CSV
+            </Button>
+          </>
+        }
+      >
+        {error !== null ? (
+          <Alert variant="destructive">
+            <AlertIcon />
+            <AlertContent>
+              <AlertDescription>{error}</AlertDescription>
+            </AlertContent>
+          </Alert>
+        ) : null}
+        {status !== null ? (
+          <Alert variant="info">
+            <AlertContent>
+              <AlertDescription>{status}</AlertDescription>
+            </AlertContent>
+          </Alert>
+        ) : null}
 
-          {stats !== null ? (
-            <div className="result-grid">
-              <dl className="result-cell">
-                <dt>交易笔数</dt>
-                <dd className="mono">{stats.trades}</dd>
-              </dl>
-              <dl className="result-cell">
-                <dt>胜率</dt>
-                <dd className="mono">{pct(stats.winRate)}</dd>
-              </dl>
-              <dl className="result-cell">
-                <dt>
+        {stats !== null ? (
+          <StatGrid>
+            <StatTile label="交易笔数" value={String(stats.trades)} />
+            <StatTile label="胜率" value={pct(stats.winRate)} />
+            <StatTile
+              label={
+                <>
                   <TermHint termKey="r" /> 平均 R 倍数
-                </dt>
-                <dd className="mono">{stats.avgR.toFixed(2)}</dd>
-              </dl>
-              <dl className="result-cell">
-                <dt>总盈亏</dt>
-                <dd className="mono">{stats.totalPnl.toFixed(2)}</dd>
-              </dl>
-            </div>
-          ) : null}
+                </>
+              }
+              value={stats.avgR.toFixed(2)}
+            />
+            <StatTile label="总盈亏" value={stats.totalPnl.toFixed(2)} />
+          </StatGrid>
+        ) : null}
 
-          <div className="notice" data-tone="info">
-            统计口径：{STATS_NOTE}。
-            {view?.feeModelEnabled === true
-              ? `已逐笔扣减费用合计 ${stats === null ? "—" : stats.totalFees.toFixed(2)} 元。`
-              : "可在设置页打开费用模型，打开后逐笔扣减印花税、过户费、经手费、证管费与佣金。"}
-          </div>
+        <Alert variant="info">
+          <AlertContent>
+            <AlertDescription>
+              统计口径：{STATS_NOTE}。
+              {feeOn
+                ? `已逐笔扣减费用合计 ${stats === null ? "—" : stats.totalFees.toFixed(2)} ${currency}。`
+                : `可在设置页打开费用模型，打开后逐笔扣减${feeItems(market)}。`}
+            </AlertDescription>
+          </AlertContent>
+        </Alert>
 
-          {view === null || view.entries.length === 0 ? (
-            <div className="hint">还没有交易记录。</div>
-          ) : (
-            <table className="grid">
-              <thead>
-                <tr>
-                  <th className="left">标的</th>
-                  <th className="left">入场日</th>
-                  <th>买入价</th>
-                  <th>止损价</th>
-                  <th className="left">出场日</th>
-                  <th>出场价</th>
-                  <th>R 倍数</th>
-                  <th>盈亏</th>
-                  <th>费用</th>
-                  <th className="left">备注</th>
-                </tr>
-              </thead>
-              <tbody>
-                {view.entries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="left mono">
-                      {entry.code} {entry.name ?? ""}
-                    </td>
-                    <td className="left mono">{entry.entryDate}</td>
-                    <td className="mono">{price(entry.entryPrice)}</td>
-                    <td className="mono">{price(entry.stopPrice)}</td>
-                    <td className="left mono">{entry.exitDate ?? "持有中"}</td>
-                    <td className="mono">{price(entry.exitPrice)}</td>
-                    <td className="mono">
-                      {entry.rMultiple === null ? "—" : entry.rMultiple.toFixed(2)}
-                    </td>
-                    <td className="mono">{entry.pnl === null ? "—" : entry.pnl.toFixed(2)}</td>
-                    <td className="mono">{entry.fees.toFixed(2)}</td>
-                    <td className="left">{entry.note ?? ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        {view === null || view.entries.length === 0 ? (
+          <p className="text-note text-ink-soft">还没有交易记录。</p>
+        ) : (
+          <DataTable>
+            <thead>
+              <tr>
+                <Th>标的</Th>
+                <Th>入场日</Th>
+                <Th align="right">买入价</Th>
+                <Th align="right">止损价</Th>
+                <Th>出场日</Th>
+                <Th align="right">出场价</Th>
+                <Th align="right">R 倍数</Th>
+                <Th align="right">盈亏</Th>
+                <Th align="right">费用</Th>
+                <Th>备注</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {view.entries.map((entry) => (
+                <Tr key={entry.id}>
+                  <Td>
+                    {entry.code} {entry.name ?? ""}
+                  </Td>
+                  <Td>{entry.entryDate}</Td>
+                  <Td align="right">{price(entry.entryPrice)}</Td>
+                  <Td align="right">{price(entry.stopPrice)}</Td>
+                  <Td>{entry.exitDate ?? "持有中"}</Td>
+                  <Td align="right">{price(entry.exitPrice)}</Td>
+                  <Td align="right">
+                    {entry.rMultiple === null ? "—" : entry.rMultiple.toFixed(2)}
+                  </Td>
+                  <Td align="right">{entry.pnl === null ? "—" : entry.pnl.toFixed(2)}</Td>
+                  <Td align="right">{entry.fees.toFixed(2)}</Td>
+                  <Td>{entry.note ?? ""}</Td>
+                </Tr>
+              ))}
+            </tbody>
+          </DataTable>
+        )}
 
-          <div className="block-title">手动补录历史交易</div>
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="manual-code">标的</label>
-              <input
-                id="manual-code"
-                value={form.code}
-                onChange={(event) => setForm({ ...form, code: event.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="manual-entry-date">入场日</label>
-              <input
-                id="manual-entry-date"
-                type="date"
-                value={form.entryDate}
-                onChange={(event) => setForm({ ...form, entryDate: event.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="manual-entry">买入价</label>
-              <input
-                id="manual-entry"
-                type="number"
-                step="0.01"
-                value={form.entryPrice}
-                onChange={(event) => setForm({ ...form, entryPrice: Number(event.target.value) })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="manual-stop">止损价</label>
-              <input
-                id="manual-stop"
-                type="number"
-                step="0.01"
-                value={form.stopPrice}
-                onChange={(event) => setForm({ ...form, stopPrice: Number(event.target.value) })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="manual-quantity">股数</label>
-              <input
-                id="manual-quantity"
-                type="number"
-                value={form.quantity}
-                onChange={(event) => setForm({ ...form, quantity: Number(event.target.value) })}
-              />
-            </div>
-          </div>
-
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="manual-exit-date">出场日</label>
-              <input
-                id="manual-exit-date"
-                type="date"
-                value={form.exitDate ?? ""}
-                onChange={(event) =>
-                  setForm({ ...form, exitDate: event.target.value === "" ? null : event.target.value })
-                }
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="manual-exit">出场价</label>
-              <input
-                id="manual-exit"
-                type="number"
-                step="0.01"
-                value={form.exitPrice ?? ""}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    exitPrice: event.target.value === "" ? null : Number(event.target.value),
-                  })
-                }
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="manual-note">备注</label>
-              <input
-                id="manual-note"
-                value={form.note ?? ""}
-                onChange={(event) => setForm({ ...form, note: event.target.value })}
-              />
-            </div>
-            <div className="field">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => void submit()}
-                disabled={busy || form.code.trim() === "" || !filled}
-              >
-                补录
-              </button>
-            </div>
-          </div>
-          <p className="hint">
-            出场价与出场日要一起填，或者都不填（都不填表示这笔还没出场）。
-            <button type="button" className="ghost" onClick={() => setFilled((value) => !value)}>
-              {filled ? "取消补录" : "开始补录"}
-            </button>
-          </p>
-
-          {beginnerMode ? (
-            <p className="hint">
-              <TermHint termKey="slippage" />
-              会让实际成交价劣于预期，日志里的盈亏是理论值。
-            </p>
-          ) : null}
-          <div className="notice" data-tone="risk">
-            {riskNotes.costFree}
-          </div>
+        <SectionHead>手动补录历史交易</SectionHead>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Input
+            label="标的"
+            value={form.code}
+            onChange={(value) => setForm({ ...form, code: value })}
+          />
+          <Input
+            label="入场日"
+            type="date"
+            value={form.entryDate}
+            onChange={(value) => setForm({ ...form, entryDate: value })}
+          />
+          <Input
+            label="买入价"
+            type="number"
+            step="0.01"
+            value={String(form.entryPrice)}
+            onChange={(value) => setForm({ ...form, entryPrice: Number(value) })}
+          />
+          <Input
+            label="止损价"
+            type="number"
+            step="0.01"
+            value={String(form.stopPrice)}
+            onChange={(value) => setForm({ ...form, stopPrice: Number(value) })}
+          />
+          <Input
+            label="股数"
+            type="number"
+            value={String(form.quantity)}
+            onChange={(value) => setForm({ ...form, quantity: Number(value) })}
+          />
+          <Input
+            label="出场日"
+            type="date"
+            value={form.exitDate ?? ""}
+            onChange={(value) => setForm({ ...form, exitDate: value === "" ? null : value })}
+          />
+          <Input
+            label="出场价"
+            type="number"
+            step="0.01"
+            value={form.exitPrice === null ? "" : String(form.exitPrice)}
+            onChange={(value) =>
+              setForm({ ...form, exitPrice: value === "" ? null : Number(value) })
+            }
+          />
+          <Input
+            label="备注"
+            value={form.note ?? ""}
+            onChange={(value) => setForm({ ...form, note: value })}
+          />
         </div>
-      </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <StatefulButton
+            size="sm"
+            disabled={form.code.trim() === "" || !filled}
+            onClick={() => submit()}
+          >
+            补录
+          </StatefulButton>
+          <Button size="sm" variant="ghost" onClick={() => setFilled((value) => !value)}>
+            {filled ? "取消补录" : "开始补录"}
+          </Button>
+          <span className="text-note text-ink-soft">
+            出场价与出场日要一起填，或者都不填（都不填表示这笔还没出场）。
+          </span>
+        </div>
+
+        {beginnerMode ? (
+          <p className="text-note text-ink-soft">
+            <TermHint termKey="slippage" />
+            会让实际成交价劣于预期，日志里的盈亏是理论值。
+          </p>
+        ) : null}
+        <Alert variant="destructive">
+          <AlertIcon />
+          <AlertContent>
+            <AlertDescription>{riskNotes.costFree}</AlertDescription>
+          </AlertContent>
+        </Alert>
+      </Panel>
 
       <JournalReview />
     </div>
@@ -337,29 +319,34 @@ function JournalReview() {
   }, [load]);
 
   return (
-    <div className="chart-card">
-      <div className="panel-head">
-        <h2>复盘总结</h2>
-        <span className="toolbar-spacer" />
-        <span className="pill" data-tone="info">
+    <Panel
+      title="复盘总结"
+      action={
+        <Stamp status="info" size="sm">
           AI 生成
-        </span>
-      </div>
-      <div className="panel-body">
-        {loading ? <div className="hint">正在生成…</div> : null}
-        {failed ? (
-          <>
-            <div className="notice" data-tone="risk">
-              解释生成失败
-            </div>
-            <button type="button" className="primary" onClick={() => void load()}>
-              重试
-            </button>
-          </>
-        ) : null}
-        {!loading && !failed && text !== null ? <p>{text}</p> : null}
-        <span className="hint">以上只是对已经发生的结果的描述，不构成买卖建议。</span>
-      </div>
-    </div>
+        </Stamp>
+      }
+    >
+      {loading ? <Typesetting>正在生成…</Typesetting> : null}
+      {failed ? (
+        <div className="flex items-center gap-3">
+          <Alert variant="destructive">
+            <AlertIcon />
+            <AlertContent>
+              <AlertDescription>解释生成失败</AlertDescription>
+            </AlertContent>
+          </Alert>
+          <Button size="sm" onClick={() => void load()}>
+            重试
+          </Button>
+        </div>
+      ) : null}
+      {!loading && !failed && text !== null ? (
+        <p className="text-lede leading-relaxed text-ink">{text}</p>
+      ) : null}
+      <p className="text-note text-ink-soft">
+        以上只是对已经发生的结果的描述，不构成买卖建议。
+      </p>
+    </Panel>
   );
 }

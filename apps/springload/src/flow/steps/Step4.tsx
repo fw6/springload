@@ -1,17 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { toMessage } from "../../api/invoke";
 import { planSave } from "../../api/plan";
 import { getSettings } from "../../api/settings";
 import { planCalc, type SizingResult } from "../../api/sizing";
+import { useCurrency } from "../../copy/MarketContext";
 import { AiCard } from "../../components/AiCard";
+import { StatGrid, StatTile } from "../../components/Panel";
 import { TermHint } from "../../components/TermHint";
+import { Alert, AlertContent, AlertDescription, AlertIcon } from "../../components/ui/alert";
+import { StatefulButton } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
 import type { StepProps } from "../useFlow";
 
-/** 写死的示例面板：账户 100,000 元，买入价 20.00、止损价 19.50。 */
+/** 写死的示例面板：账户 100,000，买入价 20.00、止损价 19.50。 */
 const EXAMPLE = { entry: 20.0, stop: 19.5, account: 100_000, riskPct: 0.005 };
 
-/** 金额按元展示，两位小数。 */
+/** 金额按本市场货币展示，两位小数。 */
 function money(value: number): string {
   return value.toFixed(2);
 }
@@ -21,7 +26,8 @@ function pct(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
 
-/** 按 A 股整股取整算减仓股数：3R 与 5R 各卖 floor(股数 ÷ 3) 股，剩余跟随 9 日均线。 */
+/** 按整股取整算减仓股数：3R 与 5R 各卖 floor(股数 ÷ 3) 股，剩余跟随 9 日均线。
+ * 两个市场都按整股算：卖出申报不受 A 股一手 100 股的限制。 */
 export function reduceShares(shares: number): {
   shares3r: number;
   shares5r: number;
@@ -32,36 +38,36 @@ export function reduceShares(shares: number): {
   return { shares3r: each, shares5r: each, remaining: safe - 2 * each };
 }
 
-/** 第 4 步：输入买入价、止损价、账户金额与单笔风险比例，实时算出股数与目标位。 */
+/** 第 4 版：输入买入价、止损价、账户金额与单笔风险比例，实时算出股数与目标位。 */
 export default function Step4({ flow }: StepProps) {
   const { sizing, setSizing } = flow;
+  const currency = useCurrency();
   const navigate = useNavigate();
   const [result, setResult] = useState<SizingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, startBusy] = useTransition();
   const [warnDistance, setWarnDistance] = useState(0.05);
 
-  /** 把当前输入存成一条计划，然后跳到计划卡页面。 */
-  const generateCard = async () => {
+  /** 把当前输入存成一条计划，然后跳到计划卡。 */
+  const generateCard = () => {
     if (flow.selected === null) return;
-    setBusy(true);
-    try {
-      await planSave({
-        code: flow.selected,
-        entry: sizing.entry,
-        stop: sizing.stop,
-        account: sizing.account,
-        riskPct: sizing.riskPct,
-        zoneId: flow.signal?.zoneId ?? null,
-      });
-      setPlanError(null);
-      navigate("/plan");
-    } catch (cause: unknown) {
-      setPlanError(toMessage(cause));
-    } finally {
-      setBusy(false);
-    }
+    startBusy(async () => {
+      try {
+        await planSave({
+          code: flow.selected as string,
+          entry: sizing.entry,
+          stop: sizing.stop,
+          account: sizing.account,
+          riskPct: sizing.riskPct,
+          zoneId: flow.signal?.zoneId ?? null,
+        });
+        setPlanError(null);
+        navigate("/plan");
+      } catch (cause: unknown) {
+        setPlanError(toMessage(cause));
+      }
+    });
   };
 
   useEffect(() => {
@@ -80,6 +86,12 @@ export default function Step4({ flow }: StepProps) {
 
   useEffect(() => {
     let cancelled = false;
+    // 还没填价格时不发请求：刚进这一版不该先弹一条报错。
+    if (!(sizing.entry > 0 && sizing.stop > 0)) {
+      setResult(null);
+      setError(null);
+      return;
+    }
     planCalc(sizing)
       .then((next) => {
         if (cancelled) return;
@@ -96,158 +108,185 @@ export default function Step4({ flow }: StepProps) {
     };
   }, [sizing]);
 
+  /** 取整口径的说法，只认后端给的 lotSize：A 股是一手 100 股，美股按整股。 */
+  const lotRounding = (size: number) => (size === 1 ? "整股" : `${size} 股的整数倍`);
   const reduce = result === null ? null : reduceShares(result.shares);
   const overThreshold = result !== null && result.stopDistance > warnDistance;
 
   return (
     <>
-      <p className="hint">
-        <TermHint termKey="r" />：买入价减止损价。股数按 A 股一手 100 股向下取整。
+      <p className="text-body leading-relaxed text-ink-soft">
+        <TermHint termKey="r" />：买入价减止损价。股数按最小申报单位向下取整，单位由
+        当前市场决定。
       </p>
 
-      <div className="field-row">
-        <div className="field">
-          <label htmlFor="sizing-entry">买入价（元/股）</label>
-          <input
-            id="sizing-entry"
-            type="number"
-            step="0.01"
-            value={sizing.entry}
-            onChange={(event) => setSizing({ ...sizing, entry: Number(event.target.value) })}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="sizing-stop">止损价（元/股）</label>
-          <input
-            id="sizing-stop"
-            type="number"
-            step="0.01"
-            value={sizing.stop}
-            onChange={(event) => setSizing({ ...sizing, stop: Number(event.target.value) })}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="sizing-account">账户金额（元）</label>
-          <input
-            id="sizing-account"
-            type="number"
-            value={sizing.account}
-            onChange={(event) => setSizing({ ...sizing, account: Number(event.target.value) })}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="sizing-risk">单笔风险比例（%）</label>
-          <input
-            id="sizing-risk"
-            type="number"
-            step="0.1"
-            value={sizing.riskPct * 100}
-            onChange={(event) => setSizing({ ...sizing, riskPct: Number(event.target.value) / 100 })}
-          />
-        </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Input
+          label={`买入价（${currency}/股）`}
+          type="number"
+          step="0.01"
+          value={String(sizing.entry)}
+          onChange={(value) => setSizing({ ...sizing, entry: Number(value) })}
+        />
+        <Input
+          label={`止损价（${currency}/股）`}
+          type="number"
+          step="0.01"
+          value={String(sizing.stop)}
+          onChange={(value) => setSizing({ ...sizing, stop: Number(value) })}
+        />
+        <Input
+          label={`账户金额（${currency}）`}
+          type="number"
+          value={String(sizing.account)}
+          onChange={(value) => setSizing({ ...sizing, account: Number(value) })}
+        />
+        <Input
+          label="单笔风险比例（%）"
+          type="number"
+          step="0.1"
+          value={String(sizing.riskPct * 100)}
+          onChange={(value) => setSizing({ ...sizing, riskPct: Number(value) / 100 })}
+        />
       </div>
 
+      {result === null && error === null ? (
+        <p className="text-note text-ink-soft">
+          填入买入价与止损价之后，这里会算出股数、投入金额与目标位，并逐项列出公式。
+        </p>
+      ) : null}
+
       {error !== null ? (
-        <div className="notice" data-tone="risk">
-          {error}
-        </div>
+        <Alert variant="destructive">
+          <AlertIcon />
+          <AlertContent>
+            <AlertDescription>{error}</AlertDescription>
+          </AlertContent>
+        </Alert>
       ) : null}
 
       {result !== null ? (
         <>
-          <div className="result-grid">
-            <dl className="result-cell">
-              <dt>可买股数</dt>
-              <dd className="mono">{result.shares}</dd>
-            </dl>
-            <dl className="result-cell">
-              <dt>投入金额</dt>
-              <dd className="mono">{money(result.capital)}</dd>
-            </dl>
-            <dl className="result-cell">
-              <dt>仓位占比</dt>
-              <dd className="mono">{pct(result.posPct)}</dd>
-            </dl>
-            <dl className="result-cell">
-              <dt>止损距离</dt>
-              <dd className="mono">{pct(result.stopDistance)}</dd>
-            </dl>
-            <dl className="result-cell">
-              <dt>
-                <TermHint termKey="target">3R 目标位</TermHint>
-              </dt>
-              <dd className="mono">{money(result.t3)}</dd>
-            </dl>
-            <dl className="result-cell">
-              <dt>5R 目标位</dt>
-              <dd className="mono">{money(result.t5)}</dd>
-            </dl>
-          </div>
+          <StatGrid>
+            <StatTile label="可买股数" value={String(result.shares)} />
+            <StatTile label="投入金额" value={money(result.capital)} />
+            <StatTile label="仓位占比" value={pct(result.posPct)} />
+            <StatTile label="止损距离" value={pct(result.stopDistance)} />
+            <StatTile
+              label={<TermHint termKey="target">3R 目标位</TermHint>}
+              value={money(result.t3)}
+            />
+            <StatTile label="5R 目标位" value={money(result.t5)} />
+          </StatGrid>
 
-          <div className="formula">
-            每股风险 = {money(sizing.entry)} − {money(sizing.stop)} = <b>{money(result.perR)}</b>
-            <br />
-            最大可亏金额 = {money(sizing.account)} × {pct(sizing.riskPct)} ={" "}
-            <b>{money(result.maxLoss)}</b>
-            <br />
-            可买股数 = {money(result.maxLoss)} ÷ {money(result.perR)} 后向下取整到 100 股 ={" "}
-            <b>{result.shares} 股</b>
-            <br />
-            投入金额 = {result.shares} × {money(sizing.entry)} = <b>{money(result.capital)}</b>
-            <br />
-            仓位占比 = {money(result.capital)} ÷ {money(sizing.account)} = <b>{pct(result.posPct)}</b>
-            <br />
-            止损距离 = {money(result.perR)} ÷ {money(sizing.entry)} = <b>{pct(result.stopDistance)}</b>
-            <br />
-            3R 目标位 = {money(sizing.entry)} + 3 × {money(result.perR)} = <b>{money(result.t3)}</b>
-            <br />
-            5R 目标位 = {money(sizing.entry)} + 5 × {money(result.perR)} = <b>{money(result.t5)}</b>
+          <div
+            data-slot="formula"
+            className="flex flex-col border-y-2 border-ink bg-slip px-3 py-2 font-mono text-note leading-6 text-ink-soft"
+          >
+            <span>
+              每股风险 = {money(sizing.entry)} − {money(sizing.stop)} ={" "}
+              <b className="text-ink">{money(result.perR)}</b>
+            </span>
+            <span>
+              最大可亏金额 = {money(sizing.account)} × {pct(sizing.riskPct)} ={" "}
+              <b className="text-ink">{money(result.maxLoss)}</b>
+            </span>
+            <span>
+              可买股数 = {money(result.maxLoss)} ÷ {money(result.perR)} 后向下取整到{" "}
+              {lotRounding(result.lotSize)} ={" "}
+              <b className="text-ink">{result.shares} 股</b>
+            </span>
+            <span>
+              投入金额 = {result.shares} × {money(sizing.entry)} ={" "}
+              <b className="text-ink">{money(result.capital)}</b>
+            </span>
+            <span>
+              仓位占比 = {money(result.capital)} ÷ {money(sizing.account)} ={" "}
+              <b className="text-ink">{pct(result.posPct)}</b>
+            </span>
+            <span>
+              止损距离 = {money(result.perR)} ÷ {money(sizing.entry)} ={" "}
+              <b className="text-ink">{pct(result.stopDistance)}</b>
+            </span>
+            <span>
+              3R 目标位 = {money(sizing.entry)} + 3 × {money(result.perR)} ={" "}
+              <b className="text-ink">{money(result.t3)}</b>
+            </span>
+            <span>
+              5R 目标位 = {money(sizing.entry)} + 5 × {money(result.perR)} ={" "}
+              <b className="text-ink">{money(result.t5)}</b>
+            </span>
           </div>
 
           {overThreshold ? (
-            <div className="notice" data-tone="warn">
-              止损距离 {pct(result.stopDistance)} 超过 {pct(warnDistance)}
-              ，超出这套策略建议的 3%~5%。不阻止提交，请自行决定。
-            </div>
+            <Alert variant="warning">
+              <AlertIcon />
+              <AlertContent>
+                <AlertDescription>
+                  止损距离 {pct(result.stopDistance)} 超过 {pct(warnDistance)}
+                  ，超出这套策略建议的 3%~5%。不阻止提交，请自行决定。
+                </AlertDescription>
+              </AlertContent>
+            </Alert>
           ) : null}
           {result.shares === 0 ? (
-            <div className="notice" data-tone="warn">
-              股数算出来是 0：最大可亏金额买不到一手 100 股。可能是止损位太近，也可能是风险比例太小。
-            </div>
+            <Alert variant="warning">
+              <AlertIcon />
+              <AlertContent>
+                <AlertDescription>
+                  股数算出来是 0：最大可亏金额买不到一个最小申报单位（
+                  {lotRounding(result.lotSize)}）。可能是止损位太近，也可能是风险比例太小。
+                </AlertDescription>
+              </AlertContent>
+            </Alert>
           ) : null}
         </>
       ) : null}
 
       {reduce !== null ? (
-        <div className="notice" data-tone="info">
-          减仓安排：3R 卖 {reduce.shares3r} 股、5R 再卖 {reduce.shares5r} 股，剩余{" "}
-          {reduce.remaining} 股跟随 9 日均线。按整股取整，不按手取整。
-        </div>
+        <Alert variant="info">
+          <AlertContent>
+            <AlertDescription>
+              减仓安排：3R 卖 {reduce.shares3r} 股、5R 再卖 {reduce.shares5r} 股，剩余{" "}
+              {reduce.remaining} 股跟随 9 日均线。卖出按整股取整，不受买入申报单位的限制。
+            </AlertDescription>
+          </AlertContent>
+        </Alert>
       ) : null}
 
       {result !== null ? (
-        <div className="panel-foot">
-          <button
-            type="button"
-            className="primary"
-            onClick={() => void generateCard()}
-            disabled={busy || result.shares <= 0}
+        <div className="flex flex-wrap items-center gap-3">
+          <StatefulButton
+            size="sm"
+            state={busy ? "loading" : "idle"}
+            loadingText="正在生成…"
+            disabled={result.shares <= 0}
+            onClick={() => generateCard()}
           >
-            {busy ? "正在生成…" : "生成计划卡"}
-          </button>
-          <span className="hint">未用满的风险金额 {money(result.unusedRisk)} 元</span>
+            生成计划卡
+          </StatefulButton>
+          <span className="text-note text-ink-soft">
+            未用满的风险金额 {money(result.unusedRisk)} {currency}
+          </span>
         </div>
       ) : null}
       {planError !== null ? (
-        <div className="notice" data-tone="risk">
-          {planError}
-        </div>
+        <Alert variant="destructive">
+          <AlertIcon />
+          <AlertContent>
+            <AlertDescription>{planError}</AlertDescription>
+          </AlertContent>
+        </Alert>
       ) : null}
 
-      <div className="block-title">示例面板（写死数字，可用来对照自己的结果）</div>
-      <div className="hint mono">
-        账户 {EXAMPLE.account} 元，买入价 {money(EXAMPLE.entry)}、止损价 {money(EXAMPLE.stop)}
-        → 每股风险 0.50、最大可亏 500.00、可买 1000 股、投入 20000.00 元（占 20.00%）、止损距离
+      <div className="border-b border-rule pb-1 font-display text-body font-bold text-ink">
+        示例面板（写死数字，可用来对照自己的结果）
+      </div>
+      <div className="tabular text-note leading-relaxed text-ink-soft">
+        账户 {EXAMPLE.account} {currency}，买入价 {money(EXAMPLE.entry)}、止损价{" "}
+        {money(EXAMPLE.stop)}
+        → 每股风险 0.50、最大可亏 500.00、可买 1000 股、投入 20000.00 {currency}（占
+        20.00%）、止损距离
         2.50%、3R 21.50、5R 22.50
       </div>
 
